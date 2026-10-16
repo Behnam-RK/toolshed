@@ -11,6 +11,7 @@ for name in "${names[@]}"; do
   work=$(mktemp -d)
   git clone --quiet --depth 1 "$url" "$work/src"
   sha=$(git -C "$work/src" rev-parse --short=7 HEAD)
+  sha="$sha.$(git hash-object "$repo/patches/$name.sh" | cut -c1-6)"  # patch edits ship too
   dest="$repo/plugins/$name"
   rm -rf "$dest" && mkdir -p "$dest"
   rsync -a --exclude .git $(for e in ${excludes//,/ }; do printf -- '--exclude /%s ' "$e"; done) "$work/src/" "$dest/"
@@ -24,7 +25,7 @@ d["version"] = f"{d.get('version', '0.0.0').split('+')[0]}+{sha}"
 json.dump(d, open(path, "w"), indent=2, ensure_ascii=False)
 open(path, "a").write("\n")
 PY
-  echo "$sha" > "$dest/.upstream-sha"
+  echo "${sha%%.*}" > "$dest/.upstream-sha"
   rm -rf "$work"
   echo "$name -> $(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$dest/.claude-plugin/plugin.json")"
 done
