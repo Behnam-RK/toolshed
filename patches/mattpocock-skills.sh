@@ -1,17 +1,32 @@
 #!/bin/bash
-# Drop skills that duplicate built-ins or other plugins. Fails loudly if upstream moves them.
+# Keep only the skills listed below; rename some. Fails loudly if upstream moves a kept skill.
 set -euo pipefail
-drop=(engineering/code-review engineering/pr engineering/domain-modeling engineering/wizard
-      engineering/prototype engineering/research)
-for s in "${drop[@]}"; do
-  [ -d "skills/$s" ] || { echo "patch: skills/$s not found upstream" >&2; exit 1; }
-  rm -rf "skills/$s"
+keep=(engineering/ask-matt engineering/tdd engineering/diagnosing-bugs engineering/codebase-design
+      engineering/wayfinder engineering/retro engineering/improve-codebase-architecture engineering/triage
+      engineering/research engineering/wizard productivity/grilling productivity/grill-me
+      productivity/wait-what productivity/teach productivity/to-questionnaire)
+renames=(ask-matt:compass diagnosing-bugs:diag to-questionnaire:questionnaire)
+
+for s in "${keep[@]}"; do
+  [ -f "skills/$s/SKILL.md" ] || { echo "patch: skills/$s not found upstream" >&2; exit 1; }
 done
-python3 - "${drop[@]}" <<'PY'
-import json, sys
-path = ".claude-plugin/plugin.json"
-d = json.load(open(path))
-gone = {f"./skills/{s}" for s in sys.argv[1:]}
-d["skills"] = [s for s in d["skills"] if s not in gone]
-json.dump(d, open(path, "w"), indent=2, ensure_ascii=False)
+for d in $(find skills -name SKILL.md -exec dirname {} \;); do
+  printf '%s\n' "${keep[@]}" | grep -qx "${d#skills/}" || rm -rf "$d"
+done
+find skills -type d -empty -delete
+
+for r in "${renames[@]}"; do
+  old=${r%%:*} new=${r##*:}
+  src=$(dirname "$(find skills -path "*/$old/SKILL.md")")
+  mv "$src" "$(dirname "$src")/$new"
+  find skills -name '*.md' -exec sed -i.bak -E "s/(^|[^a-z-])$old([^a-z-]|$)/\1$new\2/g" {} +
+done
+find skills -name '*.bak' -delete
+
+python3 - <<'PY'
+import json, pathlib
+path = pathlib.Path(".claude-plugin/plugin.json")
+d = json.loads(path.read_text())
+d["skills"] = sorted(f"./{p.parent}" for p in pathlib.Path("skills").glob("*/*/SKILL.md"))
+path.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
 PY

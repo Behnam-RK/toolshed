@@ -1,17 +1,26 @@
 {
-  "name": "behnam",
-  "owner": { "name": "Behnam RK" },
-  "metadata": { "description": "Upstream plugins with personal patches, synced weekly." },
+  "name": "toolshed",
+  "owner": {
+    "name": "Behnam RK"
+  },
+  "metadata": {
+    "description": "Personal plugins and patched upstreams; upstreams synced weekly."
+  },
   "plugins": [
     {
       "name": "mattpocock-skills",
       "source": "./plugins/mattpocock-skills",
-      "description": "Matt Pocock's skills minus code-review, pr, domain-modeling, wizard, prototype, research."
+      "description": "Matt Pocock's skills, trimmed to 15; ask-matt→compass, diagnosing-bugs→diag, to-questionnaire→questionnaire."
     },
     {
       "name": "context-mode",
       "source": "./plugins/context-mode",
       "description": "context-mode MCP tools + session memory, without tool-rewriting hooks or ctx-* skills."
+    },
+    {
+      "name": "mostofi",
+      "source": "./plugins/mostofi",
+      "description": "Docs steward: keeps docs true to code, captures ADRs, doc-budget gate."
     }
   ]
 }
