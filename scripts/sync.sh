@@ -14,6 +14,7 @@ for name in "${names[@]}"; do
   dest="$repo/plugins/$name"
   rm -rf "$dest" && mkdir -p "$dest"
   rsync -a --exclude .git $(for e in ${excludes//,/ }; do printf -- '--exclude /%s ' "$e"; done) "$work/src/" "$dest/"
+  find "$dest" -name .gitignore -delete  # upstream ignores its prebuilt bundles; ship them
   (cd "$dest" && bash "$repo/patches/$name.sh")
   python3 - "$dest/.claude-plugin/plugin.json" "$sha" <<'PY'
 import json, sys
