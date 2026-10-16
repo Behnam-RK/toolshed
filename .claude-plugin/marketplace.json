@@ -1,0 +1,17 @@
+{
+  "name": "behnam",
+  "owner": { "name": "Behnam RK" },
+  "metadata": { "description": "Upstream plugins with personal patches, synced weekly." },
+  "plugins": [
+    {
+      "name": "mattpocock-skills",
+      "source": "./plugins/mattpocock-skills",
+      "description": "Matt Pocock's skills minus code-review, pr, domain-modeling, wizard, prototype, research."
+    },
+    {
+      "name": "context-mode",
+      "source": "./plugins/context-mode",
+      "description": "context-mode MCP tools + session memory, without tool-rewriting hooks or ctx-* skills."
+    }
+  ]
+}

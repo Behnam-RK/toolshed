@@ -1,0 +1,30 @@
+name: sync upstreams
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild plugins from upstream
+        run: bash scripts/sync.sh
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A plugins
+          git diff --cached --quiet || { git commit -m "sync: $(cat plugins/*/.upstream-sha | paste -sd' ')"; git push; }
+      - name: Open an issue when a patch no longer applies
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --title "Upstream sync failed $(date -u +%F)" \
+            --body "A patch no longer applies to upstream. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
