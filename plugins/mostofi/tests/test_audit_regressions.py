@@ -3,6 +3,9 @@
 import subprocess
 
 from docsteward import config, scanner
+from docsteward.markdown import analyze
+from docsteward.rules import findings_for
+from docsteward.tokens import resolve
 
 
 def _repo(tmp_path, files):
@@ -70,3 +73,18 @@ def test_a_repo_can_turn_the_adr_check_back_on(tmp_path):
         'docs/adr/0001-x.md': 'Replaced `lib/old.py`.\n',
     })
     assert len(_refs(root, 'docs/adr/0001-x.md')) == 1
+
+
+def test_a_bare_fence_is_literal_text_not_prose_to_rewrap():
+    # Seen in all three repos: a fence with no info string is weighed as prose,
+    # and its long lines were reported as prose lines to wrap.
+    long = 'x ' * 80
+    text = f'# T\n\n```\n{long}\n- {long * 5}\n```\n'
+    found = findings_for(analyze('docs/a.md', text, resolve()), config.Config())
+    assert [f.rule for f in found if f.rule in ('prose-line-long', 'list-item-long')] == []
+
+
+def test_long_prose_outside_a_bare_fence_is_still_reported():
+    text = f'# T\n\n```\nok\n```\n\n{"word " * 30}\n'
+    found = findings_for(analyze('docs/a.md', text, resolve()), config.Config())
+    assert [f.rule for f in found] == ['prose-line-long']
