@@ -480,7 +480,7 @@ def _changelog_findings(root: Path, config: Config, scope: Scope) -> list[Findin
     listing = git(root, 'tag', '-l')
     tags = set((listing or '').split())
     if not tags:
-        print('docs: no git tags are visible — changelog-unreleased-tagged cannot tell '
+        print('mostofi: no git tags are visible — changelog-unreleased-tagged cannot tell '
               'a released version from an unreleased one (a CI checkout needs '
               'fetch-tags: true)', file=sys.stderr)
         return []

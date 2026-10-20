@@ -206,7 +206,7 @@ def changed_without_docs(root: Path, base: str | None, config: Config) -> list[F
         # typo into a clean result, so this is an error — unless the clone is
         # shallow, where the ref is genuinely absent rather than misspelled.
         if git(root, 'rev-parse', '--is-shallow-repository') == 'true\n':
-            print(f'docs: --base {base!r} is outside a shallow clone — '
+            print(f'mostofi: --base {base!r} is outside a shallow clone — '
                   'changed-without-docs skipped', file=sys.stderr)
             return []
         raise GitUnavailable(f'cannot resolve --base {base!r} as a git ref')
