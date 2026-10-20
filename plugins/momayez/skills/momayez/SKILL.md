@@ -1,0 +1,110 @@
+---
+name: momayez
+description: "Run a review ↔ fix loop: you edit, fresh read-only reviewer subagents (on a model at least as strong as yours) critique each round, until clean, capped or stalled. Works on a diff, files, a plan, a spec or a doc. Use when the user asks for it — 'review loop', 'review and fix until clean', 'keep reviewing', 'get this reviewed by opus', 'momayez this' — never on your own after ordinary edits."
+argument-hint: "[target] [--lenses a,b] [--model m] [--max-rounds n] [--verify]"
+---
+
+# Momayez — review ↔ fix loop
+
+You are the **editor**: you own every change and the ledger. Reviewers are
+`momayez:reviewer` subagents: read-only, fresh each round, and they return
+findings in the format their definition fixes. Rounds run without stopping for
+the user; the user hears from you at the announcement, if no gate is found,
+and at the end.
+
+Arguments: `$ARGUMENTS`
+
+## Setup
+
+1. **Target.** What the user named (files, a doc, a ref range). Default: the
+   diff of the current branch against its base plus uncommitted changes. Code
+   if it touches source; prose if only docs, plans, specs or skills.
+2. **Intent brief.** From the conversation, ticket or spec, write once:
+   goal, requirements, constraints, out-of-scope. Four short lists. It is pinned
+   for every round; don't rewrite it to fit a finding.
+3. **Lenses.** `--lenses` if given, else pick 1–3 from
+   [references/lenses.md](references/lenses.md) by target and risk.
+4. **Reviewer model.** Order: `haiku < sonnet < opus < fable`. Take the
+   stronger of your own model (from your system prompt) and the configured
+   floor `${user_config.reviewer_model}` (`opus` if that is blank or
+   unsubstituted). `--model` overrides both. Pass it as the Agent `model`
+   parameter on every reviewer spawn.
+5. **Cap.** `--max-rounds`, else `${user_config.max_rounds}` (3 if that is
+   blank or unsubstituted).
+6. **Gate** (code only). First hit: `Taskfile.yml` check task, `Makefile`
+   check/test target, `justfile`, `package.json` check/test scripts,
+   `noxfile.py`/`tox.ini`, `pyproject.toml` test config, `.pre-commit-config.yaml`,
+   else what CI runs. Nothing found: ask the user once, accepting "none". Run it
+   and record the baseline by exit status, not by grepping output. A red baseline
+   is reported and its failures excluded from the stop check, not fixed silently.
+7. **Announce** in one block, then start round 1 without waiting:
+
+```
+Momayez: <target>
+Intent:  <goal> | reqs: … | constraints: … | out: …
+Lenses:  <a, b> on <model>   Cap: <n>   Gate: <command> (<green|red|none>)
+```
+
+## A round
+
+1. **Spawn** one reviewer per lens in parallel, each fresh. Prompt each with
+   the intent brief, its lens brief from lenses.md, the target, and from round
+   2 the ledger. Scope:
+   - Round 1 and the capped round: the full target.
+   - Other rounds: the full target, but direct attention to this round's fix
+     diff (regressions), findings still open, and files no finding has cited.
+2. **Filter.** Drop findings below confidence 80 unless critical. Merge
+   duplicates across lenses. A finding matching a ledger entry keeps that id;
+   a `wont-fix` re-raised without new evidence is dropped. New findings get
+   the next ledger id (`F1`, `F2`, …).
+3. **Verify** (only with `--verify`): one more reviewer spawn, same model,
+   given the surviving findings and told to confirm or refute each against the
+   code. Drop refuted ones.
+4. **Decide each finding yourself.** Open the cited line. Real and ≥minor: fix
+   it, smallest change, with a test where the project has a test harness and
+   the defect is testable. Wrong: mark `wont-fix` with the evidence (the line,
+   test or rule that refutes it). Real but a product choice the brief doesn't
+   settle: mark `disputed` for the user. Nits: record, don't fix.
+5. **Gate.** Re-run it. Red from this round's fixes: fix or revert them before
+   the round ends.
+6. **Report the round** in one line:
+   `Round n: <k> findings (c/M/m/nit) · fixed <x> · wont-fix <y> · disputed <z> · gate <green|red> · <continuing|stopping: reason>`
+
+## Ledger
+
+Kept in your context; nothing is written to disk. Per finding: id, lens,
+severity, `at`, claim, state, and the reason for any `wont-fix`/`disputed`.
+States: `open → fixed | wont-fix | disputed`. A `wont-fix` re-raised with new
+evidence gets one more look; if you still decline, it becomes `disputed`.
+Also keep the set of files any finding has cited.
+
+## Stop
+
+After each round, stop at the first that holds:
+
+- **Clean**: no new critical or major findings this round, gate not red.
+- **Cap**: this was round `max_rounds`.
+- **Stall**: the open set is the same as last round's.
+
+Minor findings are fixed but don't keep the loop alive.
+
+## Final report
+
+```
+## Momayez — <target>
+Rounds:    <n> on <model>, lenses <a, b> — stopped: <clean|cap|stall>
+Gate:      <command> — <green|red> (baseline <green|red>)
+Fixed:     F1 <severity> <path:line> — <claim>
+Won't fix: F4 <path:line> — <claim> — <evidence>
+Disputed:  F6 <path:line> — <claim> — <both readings>
+Uncited:   <target files no finding cited, or none>
+Nits:      <count>
+```
+
+Omit empty lines except `Gate` and `Uncited`; an uncited file was not
+examined, not found clean. Then:
+
+1. **Disputed** findings: one question each, with both readings.
+2. **Nits**: `AskUserQuestion`, multiSelect, up to four nits per question (with
+   more than eight, offer "fix all" / "pick" / "none" first). Fix the chosen
+   ones, re-run the gate, and say it's done.

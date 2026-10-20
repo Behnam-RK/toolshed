@@ -21,6 +21,11 @@
       "name": "mostofi",
       "source": "./plugins/mostofi",
       "description": "Docs steward: keeps docs true to code, captures ADRs, doc-budget gate."
+    },
+    {
+      "name": "momayez",
+      "source": "./plugins/momayez",
+      "description": "Review ↔ fix loop: main agent edits, fresh read-only reviewers on an equal-or-stronger model critique until clean."
     }
   ]
 }
