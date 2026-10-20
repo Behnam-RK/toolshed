@@ -100,10 +100,8 @@ fi
 # status -- so a prompt over the 64K pipe buffer read as a miss.
 grep -qiE "$trigger" <<<"$prompt" || exit 0
 
-# Only in a repo that has adopted conventions, and never naming a file that is
-# not there: pointing every repo at a missing AGENTS.md was noise, not a gate.
-# Unconfigured, either convention counts: AGENTS.md for agents at large,
-# CLAUDE.md for Claude Code; the first present is the one named.
+# Only where conventions exist, never naming a missing file. Unconfigured,
+# AGENTS.md or CLAUDE.md counts, the first present named.
 if [ -z "$routing_doc" ]; then
   for candidate in AGENTS.md CLAUDE.md; do
     [ -f "$root/$candidate" ] && { routing_doc=$candidate; break; }

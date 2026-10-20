@@ -8,9 +8,17 @@ Pick 1–3, smallest set that covers the risk:
 
 | Target | Default | Add when |
 |---|---|---|
-| Code | correctness, spec-fit | security: auth, input parsing, IO, shell, SQL, secrets. tests: new behaviour without tests. performance: hot paths, loops over unbounded data, queries. simplicity: large new abstractions. docs: public symbols, CLI flags or config changed. |
+| Code | correctness, spec-fit | one of the code lenses below |
 | Prose (spec, plan, doc, skill) | accuracy, clarity | spec-fit: the doc answers a request or ticket. |
 | Mixed | correctness, accuracy | spec-fit when there is a stated requirement. |
+
+Code lenses, added when the target has:
+
+- **security**: auth, input parsing, IO, shell, SQL, secrets.
+- **tests**: new behaviour without tests.
+- **performance**: hot paths, loops over unbounded data, queries.
+- **simplicity**: large new abstractions.
+- **docs**: changed public symbols, CLI flags or config.
 
 ## correctness
 
