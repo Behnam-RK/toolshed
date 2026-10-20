@@ -1,0 +1,27 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "momayez",
+  "displayName": "Momayez",
+  "version": "1.0.0",
+  "description": "Review ↔ fix loop: the main agent edits, fresh read-only reviewers on a model at least as strong critique each round, until clean, capped or stalled.",
+  "author": { "name": "Behnam RK" },
+  "repository": "https://github.com/Behnam-RK/toolshed",
+  "keywords": ["review", "code-review", "loop", "critique", "subagents"],
+  "skills": "./skills/",
+  "userConfig": {
+    "reviewer_model": {
+      "type": "string",
+      "title": "Reviewer model floor",
+      "description": "Weakest model reviewers may run on. Reviewers get the stronger of this and the editor's own model; /momayez --model overrides per run.",
+      "default": "opus",
+      "options": ["haiku", "sonnet", "opus", "fable"]
+    },
+    "max_rounds": {
+      "type": "string",
+      "title": "Max rounds",
+      "description": "Round cap per loop; the capped round reviews at full scope. /momayez --max-rounds overrides per run.",
+      "default": "3",
+      "options": ["1", "2", "3", "4", "5"]
+    }
+  }
+}
