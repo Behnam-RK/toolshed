@@ -13,7 +13,7 @@ from .config import FAIL, RULE_DEFAULTS, WARN, Config, ConfigError, load as load
 from .corpus import GitUnavailable
 from .findings import Finding
 from .rules import findings_for as markdown_findings_for
-from .scaffold import init_repo
+from .scaffold import DEFAULT_ADR_DIR, init_repo
 from .tokens import Counter, ExactCountUnavailable, resolve as resolve_counter
 
 
@@ -296,9 +296,16 @@ def build_parser() -> argparse.ArgumentParser:
     init = sub.add_parser('init', help='scaffold config and convention docs')
     init.add_argument('--root', type=Path)
     init.add_argument('--profile', default='default')
-    init.add_argument('--lang')
+    init.add_argument('--lang', help='comma-separated; default: detected')
     init.add_argument('--force', action='store_true')
-    init.add_argument('--no-docs', action='store_true')
+    init.add_argument('--no-docs', action='store_true', help='--no-guide and --no-adr')
+    init.add_argument('--no-guide', action='store_true')
+    init.add_argument('--no-adr', action='store_true',
+                      help='keep an existing decision log; write no ADR templates')
+    init.add_argument('--adr-dir', default=DEFAULT_ADR_DIR)
+    init.add_argument('--exclude', action='append', metavar='GLOB')
+    init.add_argument('--doc-gate', action=argparse.BooleanOptionalAction)
+    init.add_argument('--routing-doc', metavar='PATH')
     init.add_argument('--check', action='store_true', dest='drift_check')
     return parser
 
@@ -314,8 +321,13 @@ def main(argv: list[str] | None = None) -> int:
             profile=args.profile,
             lang=args.lang,
             force=args.force,
-            write_docs=not args.no_docs,
+            write_guide=not (args.no_docs or args.no_guide),
+            write_adr=not (args.no_docs or args.no_adr),
             drift_check=args.drift_check,
+            exclude=args.exclude,
+            doc_gate=args.doc_gate,
+            routing_doc=args.routing_doc,
+            adr_dir=args.adr_dir,
         )
     if args.command == 'scan':
         return _run(args, scan=True)
