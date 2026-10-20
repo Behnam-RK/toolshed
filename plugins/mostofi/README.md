@@ -30,6 +30,24 @@ mostofi --explain RULE       # one rule's reasoning and knobs
 
 `bin/docs` is an alias.
 
+## Pin it in another repo
+
+The repo root packages the gate as `mostofi` (extra `exact` adds tiktoken).
+Pin a tagged commit, never a branch:
+
+```yaml
+# .pre-commit-config.yaml
+- repo: https://github.com/Behnam-RK/toolshed
+  rev: <sha>  # frozen: mostofi--v0.5.0
+  hooks:
+    - id: mostofi
+      additional_dependencies: ["tiktoken>=0.9,<1"]
+```
+
+```
+uvx --from 'mostofi[exact] @ git+https://github.com/Behnam-RK/toolshed@<sha>' mostofi check
+```
+
 ## `.docs.toml`
 
 Every key is optional; `mostofi init` writes a commented starter.
