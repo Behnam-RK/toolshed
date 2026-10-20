@@ -1,0 +1,25 @@
+# Packages the mostofi doc gate (plugins/mostofi/src/docsteward) so other repos can pin it:
+# pre-commit through .pre-commit-hooks.yaml, uvx through `mostofi @ git+https://...@<sha>`.
+# Both need the project at the repo root; the Claude plugin itself doesn't use this file.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mostofi"
+dynamic = ["version"]
+description = "Documentation budget gate and stewardship scanner"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+exact = ["tiktoken>=0.9,<1"]
+
+[project.scripts]
+mostofi = "docsteward.cli:main"
+
+[tool.hatch.version]
+path = "plugins/mostofi/src/docsteward/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["plugins/mostofi/src/docsteward"]
