@@ -120,7 +120,9 @@ def _adr_override(adr_dir: str) -> dict:
 
 
 def _toml(value) -> str:
-    # JSON's string and array syntax is valid TOML for the values written here.
+    # JSON's string, number and array syntax is valid TOML; its objects are not.
+    if isinstance(value, dict):
+        return '{ ' + ', '.join(f'{_toml(k)} = {_toml(v)}' for k, v in value.items()) + ' }'
     return json.dumps(value, ensure_ascii=False)
 
 

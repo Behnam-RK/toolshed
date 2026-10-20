@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from textwrap import dedent
 
-import pytest
 
 from docsteward.analyzers import comments, findings_for, python
 from docsteward.config import FAIL, OFF, WARN, Config
@@ -207,10 +206,6 @@ def test_heredoc_body_is_not_a_comment_block():
     assert findings_for('run.sh', source, None, Config()) == []
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    'comments.py:42 checks for a heredoc before checking the line is a comment, so a '
-    'comment that mentions `<<EOF` enters heredoc mode and hides every later run'
-))
 def test_comment_mentioning_a_heredoc_does_not_open_one():
     source = '# write it with cat <<EOF\n# a\n# b\n# c\n# d\n'
     assert comments.comment_runs(source, '#', 3) == [(1, 5)]

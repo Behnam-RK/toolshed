@@ -20,7 +20,8 @@ DEFAULT_SOFT, DEFAULT_HARD = 1000, 1400
 # a budget rewrites history. Both keep the house shape a repo can override.
 BUILTIN_OVERRIDES: tuple[dict[str, Any], ...] = (
     {'pattern': '**/README.md', 'soft': 2000, 'hard': 3000},
-    {'pattern': 'docs/adr/**', 'soft': 1200, 'hard': 2000, 'structure_rules': False},
+    {'pattern': 'docs/adr/**', 'soft': 1200, 'hard': 2000, 'structure_rules': False,
+     'rules': {'stale-file-ref': OFF}},
 )
 
 BUILTIN_EXCLUDE = (
@@ -625,13 +626,15 @@ class Config:
         ]
 
     def caps_for(self, rel: str, status: str | None = None) -> tuple[int, int]:
-        # First match wins for caps, unlike suppression, which applies if any
-        # matching override sets it. A status override outranks a plain one: it
-        # is the narrower statement about the same file.
-        override = next(iter(self._status_matching(rel, status)), None)
-        if override is None:
-            override = next(iter(self._matching(rel)), {})
-        return int(override.get('soft', self.soft)), int(override.get('hard', self.hard))
+        # First match wins, per cap (a soft-only override keeps the next match's
+        # hard cap, not [defaults]'s); suppression applies if any match sets it.
+        # A status override outranks a plain one: the narrower statement.
+        matching = self._status_matching(rel, status) + self._matching(rel)
+
+        def first(cap: str, default: int) -> int:
+            return int(next((o[cap] for o in matching if cap in o), default))
+
+        return first('soft', self.soft), first('hard', self.hard)
 
     # `fnmatchcase`, not `glob_match`: a status is free text, and `*` has to cross
     # a `/` in `Superseded by docs/adr/0004.md`.
