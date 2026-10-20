@@ -10,9 +10,15 @@ code_globs = ["*.py", "*.sh"]
 # hard = 1400
 
 # First match wins; the shipped README and docs/adr/ overrides are consulted last.
-# [[overrides]]
-# pattern = "docs/legacy/**"
-# rules = "off"
+# Templates cite paths as they land in a consuming repo, and skills cite the
+# repos they run in; neither resolves here.
+[[overrides]]
+pattern = "plugins/mostofi/src/docsteward/templates/**"
+rules = { stale-file-ref = "off" }
+
+[[overrides]]
+pattern = "plugins/*/skills/**"
+rules = { stale-file-ref = "off" }
 
 [exclude]
 paths = ["plugins/context-mode/**", "plugins/mattpocock-skills/**"]
