@@ -4,7 +4,7 @@ import re
 
 from .config import WARN, Config
 from .findings import Finding
-from .markdown import LIST_RE, PROSE, TABLE, Doc
+from .markdown import LIST_RE, PROSE, TABLE, Doc, unfenced_lines
 
 
 URL_RE = re.compile(r'(https?://\S+|`[^`]+`)')
@@ -94,12 +94,21 @@ def hint_for(
     return 'no single fix stands out; heaviest sections: ' + '; '.join(_heaviest(doc))
 
 
-def _list_items(doc: Doc) -> list[tuple[int, set[int], int]]:
+# A fence without an info string is weighed as prose, so its lines arrive as
+# PROSE segments; they are still literal text that no rewrap may touch.
+def _fenced(doc: Doc) -> set[int]:
+    text = '\n'.join(seg.text for seg in doc.segments)
+    unfenced = {lineno for lineno, _ in unfenced_lines(text)}
+    return {seg.lineno for seg in doc.segments if seg.lineno not in unfenced}
+
+
+def _list_items(doc: Doc, fenced: set[int]) -> list[tuple[int, set[int], int]]:
     items: list[tuple[int, set[int], int]] = []
     start, members, length = 0, set(), 0
     for seg in doc.segments:
-        opens = seg.kind == PROSE and LIST_RE.match(seg.text)
-        continues = members and seg.kind == PROSE and seg.text[:1] in (' ', '\t')
+        prose = seg.kind == PROSE and seg.lineno not in fenced
+        opens = prose and LIST_RE.match(seg.text)
+        continues = members and prose and seg.text[:1] in (' ', '\t')
         if opens or not continues:
             if members:
                 items.append((start, members, length))
@@ -123,7 +132,8 @@ def _format_findings(doc: Doc, config: Config) -> list[Finding]:
 
     # A wrapped bullet is many short lines, so the per-line cap cannot see a
     # crammed item; measure the joined item and report only the sharper finding.
-    long_items = [item for item in _list_items(doc) if item[2] > item_max]
+    fenced = _fenced(doc)
+    long_items = [item for item in _list_items(doc, fenced) if item[2] > item_max]
     in_long_item = {line for _, members, _ in long_items for line in members}
     if item_rule.on:
         for start, _, length in long_items:
@@ -144,7 +154,8 @@ def _format_findings(doc: Doc, config: Config) -> list[Finding]:
                     Finding(doc.rel, seg.lineno, cell_rule.id, cell_rule.severity,
                             f'table cell over {cell_max} chars')
                 )
-        if line_rule.on and seg.kind == PROSE and seg.lineno not in in_long_item:
+        if (line_rule.on and seg.kind == PROSE and seg.lineno not in in_long_item
+                and seg.lineno not in fenced):
             bare = URL_RE.sub('', seg.text)
             if len(seg.text) > line_max and len(bare) > line_max:
                 out.append(
