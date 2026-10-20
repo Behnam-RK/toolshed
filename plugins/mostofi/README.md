@@ -28,8 +28,6 @@ mostofi init [--check]       # scaffold .docs.toml + doc guide + docs/adr/
 mostofi --explain RULE       # one rule's reasoning and knobs
 ```
 
-`bin/docs` is an alias.
-
 ## Pin it in another repo
 
 The repo root packages the gate as `mostofi` (extra `exact` adds tiktoken).

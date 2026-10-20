@@ -216,7 +216,7 @@ def _run(args, scan: bool) -> int:
     try:
         config = load_config(root, args.config, args.profile)
     except ConfigError as exc:
-        print(f'docs: {exc}', file=sys.stderr)
+        print(f'mostofi: {exc}', file=sys.stderr)
         return 2
     if scan:
         config = config.for_scan()
@@ -225,7 +225,7 @@ def _run(args, scan: bool) -> int:
     try:
         counter = resolve_counter(require_exact=args.require_exact)
     except ExactCountUnavailable as exc:
-        print(f'docs: exact token counts required but unavailable — {exc}', file=sys.stderr)
+        print(f'mostofi: exact token counts required but unavailable — {exc}', file=sys.stderr)
         return 2
 
     try:
@@ -233,7 +233,7 @@ def _run(args, scan: bool) -> int:
             root, config, counter, scope, args.base
         )
     except GitUnavailable as exc:
-        print(f'docs: {exc}', file=sys.stderr)
+        print(f'mostofi: {exc}', file=sys.stderr)
         return 2
     failures = [f for f in findings if f.severity == FAIL]
 
@@ -246,7 +246,7 @@ def _run(args, scan: bool) -> int:
 
 def _explain(rule_id: str) -> int:
     if rule_id not in RULE_DEFAULTS:
-        print(f'docs: unknown rule {rule_id!r}', file=sys.stderr)
+        print(f'mostofi: unknown rule {rule_id!r}', file=sys.stderr)
         print('known rules: ' + ', '.join(sorted(RULE_DEFAULTS)), file=sys.stderr)
         return 2
     defaults = dict(RULE_DEFAULTS[rule_id])
