@@ -43,6 +43,24 @@ def test_config_alone_never_names_a_missing_routing_doc(tmp_path):
     assert 'AGENTS.md' not in out
 
 
+def test_claude_md_counts_when_unconfigured(tmp_path):
+    (tmp_path / 'CLAUDE.md').write_text('x\n', encoding='utf-8')
+    assert 'read CLAUDE.md → ' in _run(tmp_path)
+
+
+def test_agents_md_is_named_when_both_exist(adopted):
+    (adopted / 'CLAUDE.md').write_text('x\n', encoding='utf-8')
+    assert 'read AGENTS.md → ' in _run(adopted)
+
+
+def test_configured_routing_doc_missing_falls_back_to_generic(tmp_path):
+    (tmp_path / 'AGENTS.md').write_text('x\n', encoding='utf-8')
+    (tmp_path / '.docs.toml').write_text('[doc-gate]\nrouting_doc = "docs/GUIDE.md"\n',
+                                         encoding='utf-8')
+    out = _run(tmp_path)
+    assert 'read this layer' in out and 'GUIDE' not in out
+
+
 def test_custom_routing_doc(tmp_path):
     (tmp_path / 'CLAUDE.md').write_text('x\n', encoding='utf-8')
     (tmp_path / '.docs.toml').write_text('[doc-gate]\nrouting_doc = "CLAUDE.md"\n',
