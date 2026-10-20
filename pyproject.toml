@@ -15,6 +15,9 @@ dependencies = []
 [project.optional-dependencies]
 exact = ["tiktoken>=0.9,<1"]
 
+[dependency-groups]
+test = ["pytest>=8"]
+
 [project.scripts]
 mostofi = "docsteward.cli:main"
 
@@ -23,3 +26,7 @@ path = "plugins/mostofi/src/docsteward/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["plugins/mostofi/src/docsteward"]
+
+[tool.pytest.ini_options]
+testpaths = ["plugins/mostofi/tests"]
+pythonpath = ["plugins/mostofi/src"]

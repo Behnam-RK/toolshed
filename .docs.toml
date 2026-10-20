@@ -1,0 +1,28 @@
+# Written by `mostofi init` v1.0.0. Every key is optional.
+# `mostofi --explain <rule>` prints the reasoning and knobs for one rule.
+profile = "default"
+
+[corpus]
+code_globs = ["*.py", "*.sh"]
+
+# [defaults]
+# soft = 1000
+# hard = 1400
+
+# First match wins; the shipped README and docs/adr/ overrides are consulted last.
+# [[overrides]]
+# pattern = "docs/legacy/**"
+# rules = "off"
+
+[exclude]
+paths = ["plugins/context-mode/**", "plugins/mattpocock-skills/**"]
+
+[rules.adr-number-collision]
+adr_glob = "docs/adr/[0-9][0-9][0-9][0-9]-*.md"
+index = ""
+
+# [rules.docstring]
+# severity = "fail"
+
+# [python]
+# runtime_surfaced_decorators = ["strawberry", "strawberry_django", "*.tool"]
