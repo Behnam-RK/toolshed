@@ -24,6 +24,7 @@ From the user's plugin settings; a blank or unsubstituted value takes the defaul
   always runs.
 - **Consent** `${user_config.steward_consent}` (default `apply`): `propose`
   lists the planned edits and waits for a yes before step 3.
+- **Setup profile** `${user_config.setup_profile}` (default `default`): what setup proposes.
 - No `.docs.toml` and not `on-request`: offer `/mostofi setup` once per session.
 
 ## Rules
