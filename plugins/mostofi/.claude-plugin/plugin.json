@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "mostofi",
-  "displayName": "Mostofi",
+  "displayName": "mostofi",
   "version": "1.0.0",
   "description": "Keeps docs true to code: weighted-token doc budget gate (`mostofi check`), stale-doc scanner, and ADR capture.",
   "author": { "name": "Behnam RK" },
