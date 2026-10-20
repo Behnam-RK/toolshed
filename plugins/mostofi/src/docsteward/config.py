@@ -32,7 +32,7 @@ BUILTIN_EXCLUDE = (
 BUILTIN_ALWAYS_EXEMPT = ('CHANGELOG.md', '*.prompt.md')
 
 # The one place a rule is declared: its default severity, the prose
-# `docs --explain` prints, and its knobs. Adding a rule is one edit here.
+# `mostofi --explain` prints, and its knobs. Adding a rule is one edit here.
 # A rule absent from a profile keeps these.
 RULE_DEFAULTS: dict[str, dict[str, Any]] = {
     'over-hard-cap': {
@@ -566,7 +566,7 @@ class Config:
                     f'[rules.{rule_id}] then severity = {entry!r}'
                 )
         # Which severities the repo stated for itself, as opposed to inheriting
-        # from a default or a profile. `docs scan` promotes the inherited ones
+        # from a default or a profile. `mostofi scan` promotes the inherited ones
         # and leaves a stated one alone. See CONTEXT.md.
         self.stated_severities = {
             rule_id for rule_id, entry in configured.items() if 'severity' in entry
@@ -599,7 +599,7 @@ class Config:
         if not self.advisory:
             return resolved
         # Advisory applies last, so nothing can smuggle a blocking severity into
-        # `docs scan`. An `off` the repo stated — globally or for a glob — is a
+        # `mostofi scan`. An `off` the repo stated — globally or for a glob — is a
         # decision it already made, though, so a scan does not repeat it back.
 
         # A rule that is merely off by default, or off through a profile, has

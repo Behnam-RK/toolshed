@@ -181,7 +181,7 @@ def _render(
         print(f'  {len(docs)} docs, {len(exempt)} exempt')
         for rule, count in tally.most_common():
             print(f'  {count:>4}  {rule}')
-        print('  docs check --verbose  to list them')
+        print('  mostofi check --verbose  to list them')
 
     if failures:
         sys.stdout.flush()
@@ -273,10 +273,10 @@ def _add_analysis_args(parser: argparse.ArgumentParser):
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog='docs', description='Documentation budget gate')
+    parser = argparse.ArgumentParser(prog='mostofi', description='Documentation budget gate')
     # Without this there is no way to tell a stale install from a stale pin, and
-    # `docs init` hands adopters a pin derived from this very number.
-    parser.add_argument('--version', action='version', version=f'docs {__version__}')
+    # `mostofi init` hands adopters a pin derived from this very number.
+    parser.add_argument('--version', action='version', version=f'mostofi {__version__}')
     parser.add_argument('--explain', metavar='RULE')
     sub = parser.add_subparsers(dest='command')
 
