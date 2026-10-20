@@ -336,10 +336,6 @@ def test_status_override_outranks_a_path_override():
     assert config.caps_for(rel) == (1200, 2000)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    'caps_for falls back per key to [defaults], not to the next matching override: '
-    'a soft-only README override gets hard 1400 < soft 2500, so the soft cap can never fire'
-))
 def test_soft_only_override_keeps_hard_at_or_above_soft():
     config = Config({'overrides': [{'pattern': '**/README.md', 'soft': 2500}]})
     soft, hard = config.caps_for('README.md')

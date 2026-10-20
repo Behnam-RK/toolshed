@@ -3,12 +3,13 @@ from __future__ import annotations
 import re
 import sys
 from functools import cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .config import Config, glob_match
 from .corpus import GitUnavailable, git, package_of, read_tracked
 from .findings import Finding
 from .markdown import MD_LINK_RE, SKIP_PREFIXES, unfenced_lines
+from .scaffold import MARKERS
 
 
 PATH_RE = re.compile(r'`([\w][\w./@-]*\.[A-Za-z0-9]{1,5})`')
@@ -37,7 +38,27 @@ def _candidates(root: Path, rel: str, target: str, config: Config) -> list[Path]
     package = package_of(rel, config.package_roots)
     if package:
         found.append(root / package / target)
+    # Without package_roots, the nearest project the doc sits in: a monorepo's
+    # sub-projects name their files from their own manifest's directory.
+    project = _project_of(root, rel)
+    if project is not None:
+        found.append(project / target)
     return found
+
+
+@cache
+def _has_manifest(directory: Path) -> bool:
+    return any((directory / name).is_file() for name in MARKERS)
+
+
+def _project_of(root: Path, rel: str) -> Path | None:
+    # The repo root is a candidate already; only a project below it adds one.
+    for parent in PurePosixPath(rel).parents:
+        if parent == PurePosixPath('.'):
+            return None
+        if _has_manifest(root / parent):
+            return root / parent
+    return None
 
 
 # Every suffix of every tracked path and directory, so a lookup is one set test

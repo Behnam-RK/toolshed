@@ -49,7 +49,8 @@ def test_every_flag_lands_and_loads(repo):
         'index': 'decisions/README.md',
     }
     assert data['overrides'] == [
-        {'pattern': 'decisions/**', 'soft': 1200, 'hard': 2000, 'structure_rules': False}
+        {'pattern': 'decisions/**', 'soft': 1200, 'hard': 2000, 'structure_rules': False,
+         'rules': {'stale-file-ref': 'off'}}
     ]
     loaded = config.load(repo)
     assert loaded.caps_for('decisions/0001-x.md') == (1200, 2000)

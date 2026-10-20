@@ -8,7 +8,7 @@ from ..findings import Finding
 from .blocks import comment_block_findings
 
 
-HEREDOC_RE = re.compile(r'<<-?\s*[\'"]?([A-Za-z_][A-Za-z0-9_]*)[\'"]?')
+HEREDOC_RE = re.compile(r'(?<!<)<<(?!<)-?\s*[\'"]?([A-Za-z_][A-Za-z0-9_]*)[\'"]?')
 BLOCK_OPEN, BLOCK_CLOSE = '/*', '*/'
 
 
@@ -39,7 +39,9 @@ def comment_runs(source: str, prefix: str, cap: int) -> list[tuple[int, int]]:
             # A /** JSDoc */ block is not a line-comment run; skip it whole.
             in_block = BLOCK_CLOSE not in stripped[len(BLOCK_OPEN) :]
             continue
-        tag = _heredoc_tag(raw, prefix)
+        # A comment that mentions `<<EOF` opens nothing; reading it as a heredoc
+        # hid every comment run after it. `<<<` is a here-string, not a heredoc.
+        tag = None if stripped.startswith(prefix) else _heredoc_tag(raw, prefix)
         if tag is not None:
             heredoc = tag
             continue
