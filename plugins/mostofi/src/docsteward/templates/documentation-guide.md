@@ -4,7 +4,7 @@
 and signature should carry most of what a reader needs — reach for a doc only
 when the code genuinely can't express it (a cross-cutting rule, a decision's
 rationale, an operational runbook). More documentation is not a safety net;
-it's more surface area to go stale. `docs check` enforces the budgets below —
+it's more surface area to go stale. `mostofi check` enforces the budgets below —
 blocking, in pre-commit and CI.
 
 ## Budgets (blocking)
@@ -24,7 +24,7 @@ get squeezed to fit.
 | Comment block | 3 lines | — | advisory; relocate if it is narration |
 
 Every threshold is a default; `.docs.toml` overrides any per glob, and
-`docs --explain <rule>` prints one rule's reasoning and knobs.
+`mostofi --explain <rule>` prints one rule's reasoning and knobs.
 
 Ratios, all advisory: **tokens per heading**, **doc tokens vs code tokens** per
 package, and **cross-doc duplication** — the same block in two docs means one
@@ -36,7 +36,7 @@ one number, or an index row and a file that disagree) and
 exists; CI must fetch tags). A `status` list on an `[[overrides]]` entry caps a
 doc by its `**Status:**` line, so a stub gets a smaller budget than a live ADR.
 
-`docs check` is strict with no file arguments (CI) and diff-aware with them (a
+`mostofi check` is strict with no file arguments (CI) and diff-aware with them (a
 `git commit`), where only *new* violations fail. Counting uses tiktoken, falling
 back to a relaxed estimate offline, so it never fails what CI would pass.
 
@@ -57,7 +57,7 @@ under `[python] runtime_surfaced_decorators` — a framework reading an
 
 ### Exemptions
 
-Declare, don't infer — every exemption prints in `docs check`'s output:
+Declare, don't infer — every exemption prints in `mostofi check`'s output:
 
 | Kind | How |
 |---|---|

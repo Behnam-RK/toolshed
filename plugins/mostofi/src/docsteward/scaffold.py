@@ -45,13 +45,12 @@ MARKERS = {
 # one stray `*.sh` was then enough to suppress.
 GLOB_MARKERS = {'python': '*.py', 'shell': '*.sh'}
 
-REPO = 'git@github.com:VConvert/ai-toolkit'
-GIT_URL = 'git+ssh://git@github.com/VConvert/ai-toolkit'
+REPO = 'https://github.com/Behnam-RK/toolshed'
+GIT_URL = 'git+https://github.com/Behnam-RK/toolshed'
 
-# A tag names the plugin it releases: `<plugin>--vX.Y.Z`. `docs init` emits pins
-# for the docs plugin, because the pre-commit and uvx channels ship only the
-# docs gate. See ADR-0004.
-PLUGIN = 'docs'
+# A tag names the plugin it releases: `<plugin>--vX.Y.Z`. `mostofi init` emits
+# pins for mostofi, the one plugin the pre-commit and uvx channels ship.
+PLUGIN = 'mostofi'
 
 
 def tag(version: str = __version__) -> str:
@@ -65,7 +64,7 @@ def _has_tracked(root: Path, pattern: str) -> bool:
     try:
         listing = git(root, 'ls-files', '-z', '--', pattern)
     except GitUnavailable:
-        # `docs init` is the one command that must work without git: scaffolding
+        # `mostofi init` is the one command that must work without git: scaffolding
         # a repository is a reasonable thing to do before creating one.
         listing = None
     if listing is not None:
@@ -95,7 +94,7 @@ def _code_globs(root: Path, lang: str | None) -> list[str]:
     for name in langs:
         if name not in LANG_GLOBS:
             raise SystemExit(
-                f'docs init: unknown --lang {name!r} — choose from '
+                f'mostofi init: unknown --lang {name!r} — choose from '
                 f'{", ".join(sorted(LANG_GLOBS))}'
             )
         out += [g for g in LANG_GLOBS[name] if g not in out]
@@ -109,8 +108,8 @@ EXAMPLE_RULE = 'docstring'
 
 def _config_text(profile: str, globs: list[str]) -> str:
     rendered = ', '.join(f'"{g}"' for g in globs)
-    return f'''# Written by `docs init` v{__version__}. Every key is optional.
-# `docs --explain <rule>` prints the reasoning and knobs for one rule.
+    return f'''# Written by `mostofi init` v{__version__}. Every key is optional.
+# `mostofi --explain <rule>` prints the reasoning and knobs for one rule.
 profile = "{profile}"
 
 [corpus]
@@ -182,7 +181,7 @@ def init_repo(
         return _drift(root)
     if profile not in PROFILES:
         print(
-            f'docs init: unknown profile {profile!r} — choose from '
+            f'mostofi init: unknown profile {profile!r} — choose from '
             f'{", ".join(sorted(PROFILES))}',
             file=sys.stderr,
         )
@@ -213,8 +212,8 @@ def init_repo(
     print(f'\nadd to .pre-commit-config.yaml:\n'
           f'  - repo: {REPO}\n'
           f'    rev: {tag()}\n'
-          f'    hooks: [{{id: docs}}]\n')
+          f'    hooks: [{{id: mostofi}}]\n')
     print(f'add to CI:\n'
-          f"  uvx --from 'docsteward[exact] @ {GIT_URL}@{tag()}' "
-          f'docs check --require-exact')
+          f"  uvx --from 'mostofi[exact] @ {GIT_URL}@{tag()}' "
+          f'mostofi check --require-exact')
     return 0
