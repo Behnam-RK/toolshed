@@ -171,3 +171,20 @@ def test_pin_output_names_the_release_tag(repo, capsys):
     out = capsys.readouterr().out
     assert f'rev: {scaffold.tag()}' in out
     assert f'# frozen: {scaffold.tag()}' in out
+
+
+def test_guide_links_an_unindexed_reused_log_as_a_directory(repo, capsys):
+    # Found by a /mostofi setup dry run: the guide linked a README the reused
+    # log never had, so mostofi's own scaffold failed its stale-file-ref rule.
+    (repo / 'docs/decisions').mkdir(parents=True)
+    (repo / 'docs/decisions/0001-x.md').write_text('# x\n', encoding='utf-8')
+    assert _init(repo, '--no-adr', '--adr-dir', 'docs/decisions') == 0
+    guide = (repo / 'docs/workflows/documentation-guide.md').read_text(encoding='utf-8')
+    assert '](../decisions/)' in guide and 'decisions/README.md' not in guide
+    subprocess.run(['git', '-C', str(repo), 'add', '-A'], check=True)
+    capsys.readouterr()
+    assert main(['scan', '--root', str(repo), '--json']) == 0
+    assert 'stale-file-ref' not in capsys.readouterr().out
+    assert _init(repo, '--check') == 1
+    out = capsys.readouterr().out
+    assert 'drift' not in out and 'missing  docs/decisions/template.md' in out

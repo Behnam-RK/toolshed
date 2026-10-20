@@ -186,14 +186,18 @@ def _config_text(
     return ''.join(parts)
 
 
-def _template(name: str, adr_dir: str) -> str:
+def _template(name: str, adr_dir: str, indexed: bool = True) -> str:
     text = (TEMPLATES / name).read_text(encoding='utf-8')
-    if name != GUIDE or adr_dir == DEFAULT_ADR_DIR:
+    if name != GUIDE or (adr_dir == DEFAULT_ADR_DIR and indexed):
         return text
     # The guide names the decision log by path and links its index relative to
-    # where the guide lands; both follow the directory the repo chose.
-    shipped_link = os.path.relpath(f'{DEFAULT_ADR_DIR}/README.md', PurePosixPath(GUIDE_TARGET).parent)
-    link = os.path.relpath(f'{adr_dir}/README.md', PurePosixPath(GUIDE_TARGET).parent)
+    # where the guide lands; both follow the directory the repo chose, and a log
+    # with no index is linked as a directory rather than to a missing README.
+    here = PurePosixPath(GUIDE_TARGET).parent
+    shipped_link = os.path.relpath(f'{DEFAULT_ADR_DIR}/README.md', here)
+    link = os.path.relpath(f'{adr_dir}/README.md' if indexed else adr_dir, here)
+    if not indexed:
+        link += '/'
     return text.replace(f']({shipped_link})', f']({link})').replace(DEFAULT_ADR_DIR, adr_dir)
 
 
@@ -204,14 +208,15 @@ def _targets(adr_dir: str, guide: bool = True, adr: bool = True) -> dict[str, st
     return out
 
 
-def _repo_adr_dir(root: Path) -> str:
-    # The drift check has no flags to say where the log went, but the config the
-    # same init wrote does; a broken or absent one means the shipped place.
+def _repo_adr(root: Path) -> tuple[str, bool]:
+    # The drift check has no flags to say where the log went or whether it has
+    # an index, but the config the same init wrote does; a broken or absent one
+    # means the shipped place.
     try:
-        glob = load_config(root).rule(ADR_RULE).opts['adr_glob']
+        opts = load_config(root).rule(ADR_RULE).opts
     except (ConfigError, OSError):
-        return DEFAULT_ADR_DIR
-    return str(PurePosixPath(glob).parent)
+        return DEFAULT_ADR_DIR, True
+    return str(PurePosixPath(opts['adr_glob']).parent), opts['index'] != ''
 
 
 def _write(
@@ -227,7 +232,7 @@ def _write(
 
 
 def _drift(root: Path) -> int:
-    adr_dir = _repo_adr_dir(root)
+    adr_dir, indexed = _repo_adr(root)
     drifted = []
     missing = []
     for name, target in _targets(adr_dir).items():
@@ -236,7 +241,7 @@ def _drift(root: Path) -> int:
             missing.append(target)
         elif name in SEEDED_ONLY:
             continue
-        elif landed.read_text(encoding='utf-8') != _template(name, adr_dir):
+        elif landed.read_text(encoding='utf-8') != _template(name, adr_dir, indexed):
             drifted.append(target)
     for target in missing:
         print(f'missing  {target}')
@@ -310,7 +315,7 @@ def init_repo(
             '(seeded once; never overwritten)' if seeded
             else '(exists; --force to overwrite)'
         )
-        _write(root / target, _template(name, chosen),
+        _write(root / target, _template(name, chosen, adr_index != ''),
                force and not seeded, written, skipped, note)
 
     for path in written:
