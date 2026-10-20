@@ -1,0 +1,26 @@
+name: mostofi
+on:
+  push:
+    paths: ["plugins/mostofi/**", "plugins/momayez/**", "pyproject.toml", "uv.lock", ".docs.toml", ".github/workflows/mostofi.yml"]
+  pull_request:
+    paths: ["plugins/mostofi/**", "plugins/momayez/**", "pyproject.toml", "uv.lock", ".docs.toml", ".github/workflows/mostofi.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: astral-sh/setup-uv@v6
+      - name: Tests
+        run: uv run --python ${{ matrix.python }} --group test pytest -q
+      - name: Doc gate on toolshed itself
+        run: uv run --python ${{ matrix.python }} mostofi check
