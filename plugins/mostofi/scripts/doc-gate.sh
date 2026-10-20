@@ -90,7 +90,6 @@ fi
 
 [ "$enabled" = 'yes' ] || exit 0
 [ -n "$prompt" ] || exit 0
-[ -n "$routing_doc" ] || routing_doc='AGENTS.md'
 [ -n "$trigger" ] || trigger='^[[:space:]]*(please[,:]?[[:space:]]+|can you[[:space:]]+|could you[[:space:]]+|let'\''s[[:space:]]+|go[[:space:]]+)?(implement|build|refactor|enhanc|migrat(e|ion)|(add|create) (a |an |new )|new (model|resource|service|endpoint|mutation|field|hook|webhook))'
 
 # Anchor the imperative to the start of a line so "how do I implement X?" and
@@ -103,7 +102,15 @@ grep -qiE "$trigger" <<<"$prompt" || exit 0
 
 # Only in a repo that has adopted conventions, and never naming a file that is
 # not there: pointing every repo at a missing AGENTS.md was noise, not a gate.
-if [ -f "$root/$routing_doc" ]; then
+# Unconfigured, either convention counts: AGENTS.md for agents at large,
+# CLAUDE.md for Claude Code; the first present is the one named.
+if [ -z "$routing_doc" ]; then
+  for candidate in AGENTS.md CLAUDE.md; do
+    [ -f "$root/$candidate" ] && { routing_doc=$candidate; break; }
+  done
+fi
+
+if [ -n "$routing_doc" ] && [ -f "$root/$routing_doc" ]; then
   first="read ${routing_doc} → "
 elif [ -f "$config" ]; then
   first='read '

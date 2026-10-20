@@ -90,4 +90,4 @@ Every key is optional; `mostofi init` writes a commented starter.
 | `[python]` `enabled`, `runtime_surfaced_decorators`, `docstring_cap`, `module_docstring_cap`, `cli_help_exempts_module` | docstring rules |
 | `[comments]` `enabled`, `prefixes` | comment-block rules |
 | `[corpus]` `doc_globs`, `code_globs`, `package_roots` | what is scanned |
-| `[doc-gate]` `enabled`, `routing_doc`, `trigger` | the prompt hook: on/off, doc it names (`AGENTS.md`), ERE matched per line |
+| `[doc-gate]` `enabled`, `routing_doc`, `trigger` | the prompt hook: on/off, doc it names (default: `AGENTS.md`, else `CLAUDE.md`), ERE matched per line |
