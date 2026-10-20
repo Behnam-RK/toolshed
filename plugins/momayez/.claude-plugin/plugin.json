@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "momayez",
   "displayName": "momayez",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Review ↔ fix loop: the main agent edits, fresh read-only reviewers on a model at least as strong critique each round, until clean, capped or stalled.",
   "author": { "name": "Behnam RK" },
   "repository": "https://github.com/Behnam-RK/toolshed",

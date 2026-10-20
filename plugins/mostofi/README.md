@@ -66,7 +66,7 @@ Pin a tagged commit, never a branch:
 ```yaml
 # .pre-commit-config.yaml
 - repo: https://github.com/Behnam-RK/toolshed
-  rev: <sha>  # frozen: mostofi--v1.0.0
+  rev: <sha>  # frozen: mostofi--v1.1.0
   hooks:
     - id: mostofi
       additional_dependencies: ["tiktoken>=0.9,<1"]

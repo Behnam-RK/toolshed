@@ -1,4 +1,4 @@
-# Written by `mostofi init` v1.0.0. Every key is optional.
+# Written by `mostofi init` v1.1.0. Every key is optional.
 # `mostofi --explain <rule>` prints the reasoning and knobs for one rule.
 profile = "default"
 
