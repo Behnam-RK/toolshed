@@ -39,9 +39,10 @@ def comment_runs(source: str, prefix: str, cap: int) -> list[tuple[int, int]]:
             # A /** JSDoc */ block is not a line-comment run; skip it whole.
             in_block = BLOCK_CLOSE not in stripped[len(BLOCK_OPEN) :]
             continue
-        # A comment that mentions `<<EOF` opens nothing; reading it as a heredoc
-        # hid every comment run after it. `<<<` is a here-string, not a heredoc.
-        tag = None if stripped.startswith(prefix) else _heredoc_tag(raw, prefix)
+        # A comment that mentions `<<EOF`, own-line or trailing, opens nothing;
+        # reading it as a heredoc hid every later run. `<<<` is a here-string.
+        code = raw.split(f' {prefix}', 1)[0]
+        tag = None if stripped.startswith(prefix) else _heredoc_tag(code, prefix)
         if tag is not None:
             heredoc = tag
             continue

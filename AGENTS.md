@@ -23,6 +23,6 @@ plugin under `plugins/`:
 ## Releasing
 
 Bump `plugin.json` `version`; for mostofi also `plugins/mostofi/src/docsteward/__init__.py`
-(the `init` pins derive from it). Tag only mostofi, annotated:
+(the `init` pins derive from it) and the `# frozen:` pin in its README. Tag only mostofi, annotated:
 `git tag -a mostofi--vX.Y.Z`. pre-commit and uvx pin that tag, so
 `plugins/mostofi/skills/mostofi/references/setup.md` resolves its `^{}` commit.

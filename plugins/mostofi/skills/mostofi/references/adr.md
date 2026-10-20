@@ -2,8 +2,10 @@
 
 ## Format
 
+The ADR directory is the one `.docs.toml` names in
+`[rules.adr-number-collision] adr_glob` (default `docs/adr/`); call it `<dir>`.
 Write the shape `mostofi init` scaffolds unless the repo already has ADRs or a
-`docs/adr/template.md` — then match that. A consistent log beats a canonical one.
+`<dir>/template.md` — then match that. A consistent log beats a canonical one.
 
 ```markdown
 ## ADR-NNNN: Title
@@ -24,8 +26,8 @@ Anything beyond these fields explains the code, not the choice.
 ## Capture steps
 
 1. **Init (first time only).** No ADR directory → ask before creating one. With
-   consent, `mostofi init` writes `docs/adr/README.md` (index), `template.md`;
-   hand-write only where it hasn't run. Never create files without consent.
+   consent, `mostofi init` (`--adr-dir` for a log elsewhere) writes
+   `<dir>/README.md` (index) and `template.md`; hand-write only where it hasn't run. Never create files without consent.
 2. **One decision per new ADR.** Three settled things = three ADRs.
 3. **Context** — what forced it, which constraints. Verify against the code,
    not just the conversation.
@@ -35,7 +37,7 @@ Anything beyond these fields explains the code, not the choice.
 6. **Number** — scan existing ADRs and increment; watch for gaps and numbers
    claimed on other branches.
 7. **Confirm, then write** — show the full draft; write
-   `docs/adr/NNNN-decision-title.md` only after explicit approval. Declined →
+   `<dir>/NNNN-decision-title.md` only after explicit approval. Declined →
    discard, leave no file.
 8. **Index** — append a row to the ADR `README.md` in the same commit.
 

@@ -186,19 +186,33 @@ def _config_text(
     return ''.join(parts)
 
 
-def _template(name: str, adr_dir: str, indexed: bool = True) -> str:
+# What the guide's link to the decision log can point at: its index, the bare
+# directory when it has none, or nothing when there is no log yet.
+INDEX, DIRECTORY = 'index', 'directory'
+
+
+def _log_link(root: Path, adr_dir: str, indexed: bool) -> str | None:
+    if indexed:
+        return INDEX
+    return DIRECTORY if (root / adr_dir).is_dir() else None
+
+
+def _template(name: str, adr_dir: str, link_to: str | None = INDEX) -> str:
     text = (TEMPLATES / name).read_text(encoding='utf-8')
-    if name != GUIDE or (adr_dir == DEFAULT_ADR_DIR and indexed):
+    if name != GUIDE or (adr_dir == DEFAULT_ADR_DIR and link_to == INDEX):
         return text
-    # The guide names the decision log by path and links its index relative to
-    # where the guide lands; both follow the directory the repo chose, and a log
-    # with no index is linked as a directory rather than to a missing README.
+    # The guide names the decision log by path and links it relative to where
+    # the guide lands; both follow the directory the repo chose, and a link is
+    # never written to a README or directory that is not there.
     here = PurePosixPath(GUIDE_TARGET).parent
-    shipped_link = os.path.relpath(f'{DEFAULT_ADR_DIR}/README.md', here)
-    link = os.path.relpath(f'{adr_dir}/README.md' if indexed else adr_dir, here)
-    if not indexed:
-        link += '/'
-    return text.replace(f']({shipped_link})', f']({link})').replace(DEFAULT_ADR_DIR, adr_dir)
+    shipped = f'[`{DEFAULT_ADR_DIR}/`]({os.path.relpath(f"{DEFAULT_ADR_DIR}/README.md", here)})'
+    if link_to == INDEX:
+        linked = f'[`{adr_dir}/`]({os.path.relpath(f"{adr_dir}/README.md", here)})'
+    elif link_to == DIRECTORY:
+        linked = f'[`{adr_dir}/`]({os.path.relpath(adr_dir, here)}/)'
+    else:
+        linked = f'`{adr_dir}/`'
+    return text.replace(shipped, linked).replace(DEFAULT_ADR_DIR, adr_dir)
 
 
 def _targets(adr_dir: str, guide: bool = True, adr: bool = True) -> dict[str, str]:
@@ -233,6 +247,7 @@ def _write(
 
 def _drift(root: Path) -> int:
     adr_dir, indexed = _repo_adr(root)
+    link_to = _log_link(root, adr_dir, indexed)
     drifted = []
     missing = []
     for name, target in _targets(adr_dir).items():
@@ -241,7 +256,7 @@ def _drift(root: Path) -> int:
             missing.append(target)
         elif name in SEEDED_ONLY:
             continue
-        elif landed.read_text(encoding='utf-8') != _template(name, adr_dir, indexed):
+        elif landed.read_text(encoding='utf-8') != _template(name, adr_dir, link_to):
             drifted.append(target)
     for target in missing:
         print(f'missing  {target}')
@@ -303,6 +318,9 @@ def init_repo(
         print(f'mostofi init: the generated config is invalid — {exc}', file=sys.stderr)
         return 2
 
+    # Judged before anything lands: the ADR templates written below are the
+    # index this link points at.
+    link_to = INDEX if write_adr else _log_link(root, chosen, adr_index != '')
     written: list[str] = []
     skipped: list[str] = []
     _write(root / CONFIG_NAME, text, force, written, skipped)
@@ -315,7 +333,7 @@ def init_repo(
             '(seeded once; never overwritten)' if seeded
             else '(exists; --force to overwrite)'
         )
-        _write(root / target, _template(name, chosen, adr_index != ''),
+        _write(root / target, _template(name, chosen, link_to),
                force and not seeded, written, skipped, note)
 
     for path in written:

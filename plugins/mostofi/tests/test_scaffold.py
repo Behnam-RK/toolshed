@@ -188,3 +188,15 @@ def test_guide_links_an_unindexed_reused_log_as_a_directory(repo, capsys):
     assert _init(repo, '--check') == 1
     out = capsys.readouterr().out
     assert 'drift' not in out and 'missing  docs/decisions/template.md' in out
+
+
+def test_no_adr_without_any_log_writes_no_link(repo, capsys):
+    assert _init(repo, '--no-adr') == 0
+    guide = (repo / 'docs/workflows/documentation-guide.md').read_text(encoding='utf-8')
+    assert '](../adr/' not in guide and '`docs/adr/`' in guide
+    subprocess.run(['git', '-C', str(repo), 'add', '-A'], check=True)
+    capsys.readouterr()
+    assert main(['scan', '--root', str(repo), '--json']) == 0
+    assert 'stale-file-ref' not in capsys.readouterr().out
+    _init(repo, '--check')
+    assert 'drift' not in capsys.readouterr().out
