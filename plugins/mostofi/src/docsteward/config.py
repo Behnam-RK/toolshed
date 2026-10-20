@@ -95,8 +95,10 @@ RULE_DEFAULTS: dict[str, dict[str, Any]] = {
         'severity': WARN,
         'help': (
             'A reference to a file that no longer exists sends a reader nowhere. '
-            'Resolved relative to the doc, the repo root and the doc\'s package '
-            '([corpus] package_roots); a target matching ignore_patterns is skipped; '
+            'Resolved relative to the doc, the repo root, the doc\'s package '
+            '([corpus] package_roots) and the nearest sub-project with a manifest '
+            '(pyproject.toml, package.json, go.mod…); ADRs are exempt, as history; '
+            'a target matching ignore_patterns is skipped; '
             '`<!-- docs: allow stale-file-ref -->` on the line or the one above '
             'allows one. resolve_by_suffix also accepts a path any tracked file ends with.'
         ),

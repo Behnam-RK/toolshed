@@ -55,8 +55,8 @@ rather than treated as a failed setup.
   `rev: <sha>  # frozen: mostofi--vX.Y.Z`. Offline or not found: `rev:
   mostofi--vX.Y.Z`, and say so. An existing `mostofi` hook: update its `rev`
   only if the user asks.
-- **CI**: print the `uvx … mostofi check --require-exact` line `init` printed;
-  don't edit workflows.
+- **CI**: print, with the version `mostofi --version` names; don't edit workflows:
+  `uvx --from 'mostofi[exact] @ git+https://github.com/Behnam-RK/toolshed@mostofi--vX.Y.Z' mostofi check --require-exact`
 
 ## 5. Report
 

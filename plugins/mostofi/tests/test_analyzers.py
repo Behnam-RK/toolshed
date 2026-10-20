@@ -225,3 +225,18 @@ def test_comments_disabled():
 
 def test_dotted_directory_without_a_suffix():
     assert findings_for('.github/workflows/release', block(10), None, Config()) == []
+
+
+def test_trailing_comment_mentioning_a_heredoc_does_not_open_one():
+    source = 'x=1  # feed it via <<EOF\n' + '# c\n' * 5 + 'y=2\n'
+    assert comments.comment_runs(source, '#', 3) == [(2, 5)]
+
+
+def test_heredoc_with_a_trailing_comment_still_opens():
+    source = 'cat <<EOF  # here\n# a\n# b\n# c\n# d\nEOF\n'
+    assert comments.comment_runs(source, '#', 3) == []
+
+
+def test_here_string_is_not_a_heredoc():
+    source = 'grep x <<< foo\n' + '# c\n' * 5
+    assert comments.comment_runs(source, '#', 3) == [(2, 5)]

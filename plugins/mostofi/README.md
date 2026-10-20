@@ -34,7 +34,8 @@ existing one in place), and offers to add the pinned pre-commit hook.
 ## Config
 
 Per user, set in `/config` or when enabling the plugin. A repo's own doc
-rules and `.docs.toml` win over these.
+rules and `.docs.toml` win over these, except the doc gate: either switch
+turns it off.
 
 | Option | Default | |
 |---|---|---|
