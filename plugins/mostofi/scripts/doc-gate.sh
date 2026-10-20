@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook: on implementation-shaped prompts, remind the agent to
 # read the repo's conventions and a sibling first. Never blocks.
-# Configured under [doc-gate] in .docs.toml — see the README.
+# Configured under [doc-gate] in .docs.toml and by the `doc_gate` plugin option — see the README.
 
 set -uo pipefail
+
+# The user's own switch (plugin option `doc_gate`). Unset or empty is on: what an
+# unset option expands to is not documented, and the shipped default is on.
+case "$(printf '%s' "${CLAUDE_PLUGIN_OPTION_DOC_GATE:-}" | tr '[:upper:]' '[:lower:]')" in
+  false|no|0|off) exit 0 ;;
+esac
 
 # python, not jq: jq is not a Claude Code dependency, so requiring it meant the
 # hook silently never fired without it.
@@ -11,7 +17,8 @@ set -uo pipefail
 payload=$(cat 2>/dev/null) || exit 0
 [ -n "$payload" ] || exit 0
 
-config="${CLAUDE_PROJECT_DIR:-$PWD}/.docs.toml"
+root="${CLAUDE_PROJECT_DIR:-$PWD}"
+config="$root/.docs.toml"
 
 read -r -d '' gate_reader <<'PY' || true
 import json
@@ -94,4 +101,14 @@ fi
 # status -- so a prompt over the 64K pipe buffer read as a miss.
 grep -qiE "$trigger" <<<"$prompt" || exit 0
 
-echo "[doc-gate] Before non-trivial code: read ${routing_doc} → this layer's convention doc → one sibling implementation; mirror it."
+# Only in a repo that has adopted conventions, and never naming a file that is
+# not there: pointing every repo at a missing AGENTS.md was noise, not a gate.
+if [ -f "$root/$routing_doc" ]; then
+  first="read ${routing_doc} → "
+elif [ -f "$config" ]; then
+  first='read '
+else
+  exit 0
+fi
+
+echo "[doc-gate] Before non-trivial code: ${first}this layer's convention doc → one sibling implementation; mirror it."
