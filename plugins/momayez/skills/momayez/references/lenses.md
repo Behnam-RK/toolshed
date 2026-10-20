@@ -8,7 +8,7 @@ Pick 1–3, smallest set that covers the risk:
 
 | Target | Default | Add when |
 |---|---|---|
-| Code | correctness, spec-fit | security: auth, input parsing, IO, shell, SQL, secrets. tests: new behaviour without tests. performance: hot paths, loops over unbounded data, queries. simplicity: large new abstractions. |
+| Code | correctness, spec-fit | security: auth, input parsing, IO, shell, SQL, secrets. tests: new behaviour without tests. performance: hot paths, loops over unbounded data, queries. simplicity: large new abstractions. docs: public symbols, CLI flags or config changed. |
 | Prose (spec, plan, doc, skill) | accuracy, clarity | spec-fit: the doc answers a request or ticket. |
 | Mixed | correctness, accuracy | spec-fit when there is a stated requirement. |
 
@@ -53,6 +53,16 @@ Work that scales worse than it needs to on realistic input: N+1 queries,
 quadratic loops over unbounded data, repeated IO in loops, blocking calls on
 hot paths. Not: micro-optimisation without a hot path.
 Major: user-visible on realistic input. Minor: wasteful but bounded.
+
+## docs
+
+Do the docs still match the changed code? READMEs, docstrings, comments,
+changelogs, ADRs and `--help` text that describe a renamed, removed or changed
+symbol, flag or config key; a new public surface or a settled decision with no
+record. If `command -v mostofi` succeeds, run
+`mostofi scan --base <base> --json` and verify each lead against the code
+before reporting it. Not: style, length, or docs for unchanged code.
+Major: a reader acting on the doc would fail. Minor: stale or missing prose that misleads nobody.
 
 ## accuracy
 

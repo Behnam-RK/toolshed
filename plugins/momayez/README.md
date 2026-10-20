@@ -24,7 +24,8 @@ Target defaults to the branch diff plus uncommitted changes; files, docs,
 plans and specs work too.
 
 - **Lenses**: correctness, security, spec-fit, simplicity, tests, performance,
-  accuracy, clarity. 1–3 are auto-picked and announced; `--lenses` overrides.
+  docs, accuracy, clarity. 1–3 are auto-picked and announced; `--lenses`
+  overrides. `docs` uses `mostofi scan` when the mostofi plugin is enabled.
 - **Findings** carry `file:line`, quoted evidence, severity and confidence;
   below 80 is dropped. Critical, major and minor get fixed; nits are offered
   at the end. `--verify` adds a verifier pass before fixes.
