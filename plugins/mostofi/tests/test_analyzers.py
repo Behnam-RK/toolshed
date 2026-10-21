@@ -240,3 +240,13 @@ def test_heredoc_with_a_trailing_comment_still_opens():
 def test_here_string_is_not_a_heredoc():
     source = 'grep x <<< foo\n' + '# c\n' * 5
     assert comments.comment_runs(source, '#', 3) == [(2, 5)]
+
+
+def test_tab_separated_trailing_comment_does_not_open_a_heredoc():
+    source = 'x=1\t# feed <<EOF\n' + '# c\n' * 5
+    assert comments.comment_runs(source, '#', 3) == [(2, 5)]
+
+
+def test_quoted_hash_before_a_heredoc_still_opens_it():
+    source = "sed -e 's/ #.*//' <<'EOF'\n" + '# body\n' * 6 + 'EOF\n'
+    assert comments.comment_runs(source, '#', 3) == []

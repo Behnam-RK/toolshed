@@ -201,18 +201,18 @@ def _template(name: str, adr_dir: str, link_to: str | None = INDEX) -> str:
     text = (TEMPLATES / name).read_text(encoding='utf-8')
     if name != GUIDE or (adr_dir == DEFAULT_ADR_DIR and link_to == INDEX):
         return text
-    # The guide names the decision log by path and links it relative to where
-    # the guide lands; both follow the directory the repo chose, and a link is
-    # never written to a README or directory that is not there.
+    # Path and link follow the chosen dir, never to a missing README or dir.
+    # Path first: replaced after the link, `docs/adrs` became `docs/adrss`.
+    text = text.replace(DEFAULT_ADR_DIR, adr_dir)
     here = PurePosixPath(GUIDE_TARGET).parent
-    shipped = f'[`{DEFAULT_ADR_DIR}/`]({os.path.relpath(f"{DEFAULT_ADR_DIR}/README.md", here)})'
+    shipped = f'[`{adr_dir}/`]({os.path.relpath(f"{DEFAULT_ADR_DIR}/README.md", here)})'
     if link_to == INDEX:
         linked = f'[`{adr_dir}/`]({os.path.relpath(f"{adr_dir}/README.md", here)})'
     elif link_to == DIRECTORY:
         linked = f'[`{adr_dir}/`]({os.path.relpath(adr_dir, here)}/)'
     else:
         linked = f'`{adr_dir}/`'
-    return text.replace(shipped, linked).replace(DEFAULT_ADR_DIR, adr_dir)
+    return text.replace(shipped, linked)
 
 
 def _targets(adr_dir: str, guide: bool = True, adr: bool = True) -> dict[str, str]:

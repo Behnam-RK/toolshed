@@ -200,3 +200,11 @@ def test_no_adr_without_any_log_writes_no_link(repo, capsys):
     assert 'stale-file-ref' not in capsys.readouterr().out
     _init(repo, '--check')
     assert 'drift' not in capsys.readouterr().out
+
+
+def test_adr_dir_sharing_the_default_prefix_is_named_once(repo):
+    assert _init(repo, '--adr-dir', 'docs/adrs') == 0
+    guide = (repo / 'docs/workflows/documentation-guide.md').read_text(encoding='utf-8')
+    assert '[`docs/adrs/`](../adrs/README.md)' in guide
+    assert 'adrss' not in guide
+    assert _init(repo, '--check') == 0
