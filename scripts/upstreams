@@ -1,3 +1,3 @@
 # name  upstream-git-url  comma-separated top-level paths to drop
-mattpocock-skills  https://github.com/mattpocock/skills.git  node_modules,docs,scripts
+mattpocock-skills  https://github.com/mattpocock/skills.git  node_modules,docs,scripts,package.json,package-lock.json
 context-mode       https://github.com/mksglu/context-mode.git  tests,web,docs,BENCHMARK.md
