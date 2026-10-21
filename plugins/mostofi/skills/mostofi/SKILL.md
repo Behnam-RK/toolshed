@@ -56,7 +56,7 @@ From the user's plugin settings; a blank or unsubstituted value takes the defaul
 1. **Scope.** Diff against base (`git diff --name-only <base>...HEAD`); note
    added/renamed/removed symbols and config. Run
    `mostofi scan [--base <ref>] [--json] [--root <path>]` — advisory leads,
-   exit 0. `mostofi check` is the blocking gate on the same `.docs.toml`;
+   exit 0 (2: broken config). `mostofi check` is the blocking gate on the same `.docs.toml`;
    `mostofi --explain <rule>` explains one rule.
 2. **Review** each surface: does it match the code, is anything new
    unrecorded, stale or redundant? Checklist: `references/review-checklist.md`.

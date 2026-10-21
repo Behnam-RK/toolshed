@@ -38,7 +38,7 @@ def _candidates(root: Path, rel: str, target: str, config: Config) -> list[Path]
     package = package_of(rel, config.package_roots)
     if package:
         found.append(root / package / target)
-    # Without package_roots, the nearest project the doc sits in: a monorepo's
+    # Also, with or without package_roots, the nearest project the doc sits in: a monorepo's
     # sub-projects name their files from their own manifest's directory.
     project = _project_of(root, rel)
     if project is not None:

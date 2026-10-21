@@ -48,7 +48,7 @@ turns it off.
 
 ```
 mostofi check [files…]       # blocking gate, exit 1 on failure (strict with no files)
-mostofi scan [--base REF]    # advisory report, always exit 0
+mostofi scan [--base REF]    # advisory report, exit 0 (2 if the config is broken)
 mostofi init [--check]       # scaffold .docs.toml + doc guide + docs/adr/
 mostofi --explain RULE       # one rule's reasoning and knobs
 ```
