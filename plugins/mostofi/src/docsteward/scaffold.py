@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from itertools import takewhile
 import sys
 import tomllib
 from pathlib import Path, PurePosixPath
@@ -230,7 +231,11 @@ def _repo_adr(root: Path) -> tuple[str, bool]:
         opts = load_config(root).rule(ADR_RULE).opts
     except (ConfigError, OSError):
         return DEFAULT_ADR_DIR, True
-    return str(PurePosixPath(opts['adr_glob']).parent), opts['index'] != ''
+    # The literal directory above the first wildcard: the rule also accepts a
+    # recursive `docs/adr/**/[0-9]*.md`, whose parent is no path.
+    parts = PurePosixPath(opts['adr_glob']).parent.parts
+    fixed = str(PurePosixPath(*takewhile(lambda part: not set(part) & set('*?['), parts)))
+    return (DEFAULT_ADR_DIR if fixed == '.' else fixed), opts['index'] != ''
 
 
 def _write(
@@ -270,7 +275,8 @@ def _drift(root: Path) -> int:
 
 def _relative_dir(value: str) -> str | None:
     path = PurePosixPath(value.strip().rstrip('/'))
-    if not value.strip() or path.is_absolute() or '..' in path.parts:
+    # The root itself is no log directory: `./**` and `./0001-*.md` match nothing.
+    if not value.strip() or path.is_absolute() or '..' in path.parts or str(path) == '.':
         return None
     return str(path)
 
