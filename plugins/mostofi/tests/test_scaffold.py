@@ -132,7 +132,7 @@ def test_no_docs_writes_only_config(repo):
     assert sorted(p.name for p in repo.iterdir() if p.name != '.git') == ['.docs.toml']
 
 
-@pytest.mark.parametrize('bad', ['../elsewhere', '/abs', ''])
+@pytest.mark.parametrize('bad', ['../elsewhere', '/abs', '', '.', './'])
 def test_adr_dir_outside_repo_is_refused(repo, bad):
     assert _init(repo, '--adr-dir', bad) == 2
     assert not (repo / '.docs.toml').exists()
@@ -208,3 +208,14 @@ def test_adr_dir_sharing_the_default_prefix_is_named_once(repo):
     assert '[`docs/adrs/`](../adrs/README.md)' in guide
     assert 'adrss' not in guide
     assert _init(repo, '--check') == 0
+
+
+def test_drift_follows_a_recursive_adr_glob(repo, capsys):
+    _init(repo)
+    toml = repo / '.docs.toml'
+    toml.write_text(toml.read_text(encoding='utf-8') + (
+        '\n[rules.adr-number-collision]\nadr_glob = "docs/adr/**/[0-9]*.md"\n'
+    ), encoding='utf-8')
+    capsys.readouterr()
+    assert _init(repo, '--check') == 0
+    assert 'all templates match' in capsys.readouterr().out
