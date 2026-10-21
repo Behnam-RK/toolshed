@@ -20,8 +20,9 @@ repo's policy; the user's plugin options never write into it.
 
 One `AskUserQuestion` round, each option pre-filled from detection:
 
-1. **Profile + languages**: profile defaults to the setup profile from the
-   skill's Options; `strict` fails where `default` warns.
+1. **Profile + languages**: profile pre-fills from the existing `.docs.toml`,
+   else the setup profile from the skill's Options; `strict` fails where
+   `default` warns.
 2. **Convention docs + ADRs**: write the guide and `docs/adr/`, or reuse what
    exists (its ADR dir, no templates).
 3. **Doc-gate**: on or off for this repo, and which routing doc it names.

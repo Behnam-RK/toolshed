@@ -21,6 +21,14 @@ def _heredoc_tag(line: str, prefix: str) -> str | None:
     return match.group(1) if match else None
 
 
+# A quoted span is kept whole so a ` #` inside it is not taken for a comment.
+TRAILING_COMMENT_RE = re.compile(r'''("[^"]*"|'[^']*')|\s#.*''')
+
+
+def _without_trailing_comment(line: str) -> str:
+    return TRAILING_COMMENT_RE.sub(lambda m: m.group(1) or '', line)
+
+
 def comment_runs(source: str, prefix: str, cap: int) -> list[tuple[int, int]]:
     runs: list[tuple[int, int]] = []
     start = length = previous = 0
@@ -41,7 +49,7 @@ def comment_runs(source: str, prefix: str, cap: int) -> list[tuple[int, int]]:
             continue
         # A comment that mentions `<<EOF`, own-line or trailing, opens nothing;
         # reading it as a heredoc hid every later run. `<<<` is a here-string.
-        code = raw.split(f' {prefix}', 1)[0]
+        code = _without_trailing_comment(raw)
         tag = None if stripped.startswith(prefix) else _heredoc_tag(code, prefix)
         if tag is not None:
             heredoc = tag
