@@ -28,16 +28,18 @@ search shaping from the comments". With no mode it revises the project's existin
 shaping doc, or drafts one if there is none.
 
 It reads the project, its issues, earlier versions and, inside a repo, the
-code; then asks only what blocks an accurate draft, as multiple-choice
-questions. Everything else lands in the doc as an Open decision.
+code; then asks only what the sources can't answer and the draft can't do without, as multiple-choice
+questions. Open choices land in the doc as Open decisions; unknown facts are
+written as unknown.
 
 ## What it writes
 
-A properties header (status, owner, reviewers, decide-by, supersedes), then
-headline and ask, problems (P#), solution, decisions (D#, Decided and Open
-with options, owner and date), risks, and out of scope. The body names no
-code. Detail goes below a divider: what changed and review responses (for
-vN), engineering detail, rejected alternatives, glossary. The format and its
+A properties header (status, owner, author, reviewers, decide-by, supersedes,
+project), then headline and ask, problems (P#), solution, decisions (D#,
+Decided and Open with options, owner and date), risks, and out of scope. The
+body names no code. Detail goes below a divider: what changed from the
+previous version with the review responses (revisions only), engineering detail,
+rejected alternatives, glossary. The format and its
 rules: `skills/dabir/references/format.md`. Run inside a repo whose
 `AGENTS.md`, `CLAUDE.md` or docs state shaping conventions, and those win.
 
@@ -50,10 +52,14 @@ Each needs its own yes:
 - **Replies:** on a revision, a reply on each thread of the previous version
   pointing to vN. Threads are never resolved.
 - **Issues:** one per `Missing:` item or Open decision, picked from a list.
+- **ADR links:** after mostofi records ADRs, one edit to the version just
+  published adds their links to Appendix B. It is the only edit a published
+  version gets.
 
 ## Hand-offs
 
 - **momayez:** offered before publishing, with dabir's final review checklist
   as the reviewers' brief.
-- **mostofi:** in a repo with an ADR log, offered after publishing to record
-  the hard-to-reverse decisions as ADRs and link them from the doc.
+- **mostofi:** in a repo with an ADR log and mostofi enabled, offered after
+  publishing to record the hard-to-reverse decisions as ADRs. Linking them
+  from the doc's engineering appendix is a separate yes.
