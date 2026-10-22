@@ -1,9 +1,9 @@
 name: mostofi
 on:
   push:
-    paths: ["plugins/mostofi/**", "plugins/momayez/**", "pyproject.toml", "uv.lock", ".docs.toml", ".github/workflows/mostofi.yml"]
+    paths: ["plugins/mostofi/**", "plugins/momayez/**", "plugins/dabir/**", "pyproject.toml", "uv.lock", ".docs.toml", ".github/workflows/mostofi.yml"]
   pull_request:
-    paths: ["plugins/mostofi/**", "plugins/momayez/**", "pyproject.toml", "uv.lock", ".docs.toml", ".github/workflows/mostofi.yml"]
+    paths: ["plugins/mostofi/**", "plugins/momayez/**", "plugins/dabir/**", "pyproject.toml", "uv.lock", ".docs.toml", ".github/workflows/mostofi.yml"]
 
 permissions:
   contents: read

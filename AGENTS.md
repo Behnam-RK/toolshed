@@ -7,7 +7,7 @@ plugin under `plugins/`:
   `scripts/sync.sh` from the URLs in `scripts/upstreams`, then
   `patches/<name>.sh`. Never edit them in place; the next sync overwrites
   it. Change the patch script, then run `scripts/sync.sh <name>`.
-- **Own** (`mostofi`, `momayez`): edited here. Each plugin's README is its
+- **Own** (`mostofi`, `momayez`, `dabir`): edited here. Each plugin's README is its
   user doc; its `skills/*/SKILL.md` is what the agent reads.
 
 ## Before changing an own plugin
