@@ -1,7 +1,7 @@
 ---
 name: momayez
 description: "Run a review ↔ fix loop: you edit, fresh read-only reviewer subagents (on a model at least as strong as yours) critique each round, until clean, capped or stalled. Works on a diff, files, a plan, a spec or a doc. Use when the user asks for it — 'review loop', 'review and fix until clean', 'keep reviewing', 'get this reviewed by opus', 'momayez this' — never on your own after ordinary edits."
-argument-hint: "[target] [--lenses a,b] [--model m] [--max-rounds n] [--verify]"
+argument-hint: "[target] [--lenses a,b] [--model m] [--max-rounds n] [--max-reviewers n] [--max-parallel n] [--verify]"
 ---
 
 # Momayez — review ↔ fix loop
@@ -23,7 +23,9 @@ Arguments: `$ARGUMENTS`
    goal, requirements, constraints, out-of-scope. Four short lists. It is pinned
    for every round; don't rewrite it to fit a finding.
 3. **Lenses.** `--lenses` if given, else pick 1–3 from
-   [references/lenses.md](references/lenses.md) by target and risk.
+   [references/lenses.md](references/lenses.md) by target and risk, at most
+   `--max-reviewers`, else `${user_config.max_reviewers}` (2 if blank or
+   unsubstituted), highest risk first. Explicit `--lenses` is never trimmed.
 4. **Reviewer model.** Order: `haiku < sonnet < opus < fable`. Take the
    stronger of your own model (from your system prompt) and the configured
    floor `${user_config.reviewer_model}` (`opus` if that is blank or
@@ -31,25 +33,28 @@ Arguments: `$ARGUMENTS`
    parameter on every reviewer spawn.
 5. **Cap.** `--max-rounds`, else `${user_config.max_rounds}` (3 if that is
    blank or unsubstituted).
-6. **Gate** (code only). First hit: `Taskfile.yml` check task, `Makefile`
+6. **Parallelism.** `--max-parallel`, else `${user_config.max_parallel}` (2 if
+   blank or unsubstituted). It caps reviewers in flight, never the lens count.
+7. **Gate** (code only). First hit: `Taskfile.yml` check task, `Makefile`
    check/test target, `justfile`, `package.json` check/test scripts,
    `noxfile.py`/`tox.ini`, `pyproject.toml` test config, `.pre-commit-config.yaml`,
    else what CI runs. Nothing found: ask the user once, accepting "none". Run it
    and record the baseline by exit status, not by grepping output. A red baseline
    is reported and its failures excluded from the stop check, not fixed silently.
-7. **Announce** in one block, then start round 1 without waiting:
+8. **Announce** in one block, then start round 1 without waiting:
 
 ```
 Momayez: <target>
 Intent:  <goal> | reqs: … | constraints: … | out: …
-Lenses:  <a, b> on <model>   Cap: <n>   Gate: <command> (<green|red|none>)
+Lenses:  <a, b> on <model>   Cap: <n>   Parallel: <n>   Gate: <command> (<green|red|none>)
 ```
 
 ## A round
 
-1. **Spawn** one reviewer per lens in parallel, each fresh. Prompt each with
-   the intent brief, its lens brief from lenses.md, the target, and from round
-   2 the ledger. Scope:
+1. **Spawn** one reviewer per lens, each fresh, in waves of at most the
+   parallelism cap: one message per wave, each finishing before the next.
+   Prompt each with the intent brief, its lens brief from lenses.md, the
+   target, and from round 2 the ledger. Scope:
    - Round 1 and the capped round: the full target.
    - Other rounds: the full target, but direct attention to this round's fix
      diff (regressions), findings still open, and files no finding has cited.

@@ -16,7 +16,7 @@ at the round cap, or when progress stalls.
 ## Use
 
 ```
-/momayez [target] [--lenses a,b] [--model m] [--max-rounds n] [--verify]
+/momayez [target] [--lenses a,b] [--model m] [--max-rounds n] [--max-reviewers n] [--max-parallel n] [--verify]
 ```
 
 Or ask for it: "review loop on this branch", "review and fix until clean".
@@ -42,6 +42,8 @@ Set in `/config` or when enabling the plugin:
 |---|---|---|
 | `reviewer_model` | `opus` | Floor; reviewers get the stronger of this and the editor's model. |
 | `max_rounds` | `3` | Round cap; the capped round reviews at full scope. |
+| `max_reviewers` | `2` | Most lenses auto-picked per round, so fewer reviewers cost less; `--lenses` is never trimmed. |
+| `max_parallel` | `2` | Reviewers running at once; extra lenses run in later waves. |
 
 ## Read-only
 

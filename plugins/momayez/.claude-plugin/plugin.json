@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "momayez",
   "displayName": "momayez",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Review ↔ fix loop: the main agent edits, fresh read-only reviewers on a model at least as strong critique each round, until clean, capped or stalled.",
   "author": { "name": "Behnam RK" },
   "repository": "https://github.com/Behnam-RK/toolshed",
@@ -21,6 +21,20 @@
       "title": "Max rounds",
       "description": "Round cap per loop; the capped round reviews at full scope. /momayez --max-rounds overrides per run.",
       "default": "3",
+      "options": ["1", "2", "3", "4", "5"]
+    },
+    "max_reviewers": {
+      "type": "string",
+      "title": "Max auto-picked reviewers",
+      "description": "Most lenses (one reviewer each) auto-picked per round; fewer reviewers cost less. An explicit --lenses is never trimmed. /momayez --max-reviewers overrides per run.",
+      "default": "2",
+      "options": ["1", "2", "3"]
+    },
+    "max_parallel": {
+      "type": "string",
+      "title": "Max parallel reviewers",
+      "description": "Most reviewer subagents running at once in a round; extra lenses run in later waves. /momayez --max-parallel overrides per run.",
+      "default": "2",
       "options": ["1", "2", "3", "4", "5"]
     }
   }
