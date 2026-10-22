@@ -3,7 +3,7 @@
   "name": "momayez",
   "displayName": "momayez",
   "version": "1.3.0",
-  "description": "Review ↔ fix loop: the main agent edits, fresh read-only reviewers on a model at least as strong critique each round, until clean, capped or stalled.",
+  "description": "Review ↔ fix loop: the main agent edits, fresh read-only reviewers, normally on a model at least as strong, critique each round, until clean, capped or stalled.",
   "author": { "name": "Behnam RK" },
   "repository": "https://github.com/Behnam-RK/toolshed",
   "keywords": ["review", "code-review", "loop", "critique", "subagents"],
