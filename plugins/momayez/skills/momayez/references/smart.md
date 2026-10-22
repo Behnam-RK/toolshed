@@ -6,9 +6,9 @@ from the size numbers below; do not read the diff to decide. Explicit
 
 ## Measure
 
-Code: `git diff <base> --shortstat` and `--name-only`, counting uncommitted
-changes. Prose or named files: `wc -l` over them. Lines = insertions +
-deletions.
+A diff target, code or prose: `git diff <base> --shortstat` and `--name-only`,
+counting uncommitted changes. Lines = insertions + deletions. Named files or
+documents: `wc -l` over them.
 
 ## Tier
 

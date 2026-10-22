@@ -37,7 +37,7 @@ plans and specs work too.
 ## Smart
 
 `--smart` spends review effort in proportion to the change. The editor sizes
-the target from `git diff --shortstat` (lines, files) without reading the diff,
+the target from `git diff <base> --shortstat` (lines, files) without reading the diff,
 then picks reviewers and rounds from a four-tier table; a risky path (auth,
 shell, SQL, secrets, parsing, migrations, CI) bumps one tier. A small, mechanical
 change (rename, formatting, version bump) reviews on `sonnet`, never `haiku`.
