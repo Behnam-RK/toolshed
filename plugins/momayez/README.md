@@ -16,7 +16,7 @@ at the round cap, or when progress stalls.
 ## Use
 
 ```
-/momayez [target] [--lenses a,b] [--model m] [--max-rounds n] [--max-reviewers n] [--max-parallel n] [--verify]
+/momayez [target] [--lenses a,b] [--model m] [--max-rounds n] [--max-reviewers n] [--max-parallel n] [--smart|--no-smart] [--verify]
 ```
 
 Or ask for it: "review loop on this branch", "review and fix until clean".
@@ -34,6 +34,16 @@ plans and specs work too.
 - **Disputes**: the editor may decline a finding with evidence; a reviewer
   re-raises only with new evidence; anything left goes to you.
 
+## Smart
+
+`--smart` spends review effort in proportion to the change. The editor sizes
+the target from `git diff --shortstat` (lines, files) without reading the diff,
+then picks reviewers and rounds from a four-tier table; a risky path (auth,
+shell, SQL, secrets, parsing, migrations, CI) bumps one tier. A small, mechanical
+change (rename, formatting, version bump) reviews on `sonnet`, never `haiku`.
+Explicit flags win per setting; tiers live in
+`skills/momayez/references/smart.md`.
+
 ## Config
 
 Set in `/config` or when enabling the plugin:
@@ -43,6 +53,7 @@ Set in `/config` or when enabling the plugin:
 | `reviewer_model` | `opus` | Floor; reviewers get the stronger of this and the editor's model. |
 | `max_rounds` | `3` | Round cap; the capped round reviews at full scope. |
 | `max_reviewers` | `2` | Most lenses auto-picked per round, so fewer reviewers cost less; `--lenses` is never trimmed. |
+| `smart` | `off` | `on` sizes every run like `--smart`; `--no-smart` turns it off per run. |
 | `max_parallel` | `2` | Reviewers running at once; extra lenses run in later waves. |
 
 ## Read-only
