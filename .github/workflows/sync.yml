@@ -8,23 +8,49 @@ permissions:
   contents: write
   issues: write
 
+# One sync at a time: two pushing to main would race.
+concurrency:
+  group: sync-upstreams
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Rebuild plugins from upstream
+        id: rebuild
         run: bash scripts/sync.sh
       - name: Commit
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A plugins
-          git diff --cached --quiet || { git commit -m "sync: $(cat plugins/*/.upstream-sha | paste -sd' ')"; git push; }
-      - name: Open an issue when a patch no longer applies
+          git diff --cached --quiet && exit 0
+          git commit -m "sync: $(cat plugins/*/.upstream-sha | paste -sd' ')"
+          git pull --rebase
+          git push
+      - name: Report a failed sync in one open issue
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REBUILD: ${{ steps.rebuild.outcome }}
+          COMMIT: ${{ steps.commit.outcome }}
         run: |
-          gh issue create --title "Upstream sync failed $(date -u +%F)" \
-            --body "A patch no longer applies to upstream. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "$REBUILD" = failure ]; then
+            what='Rebuilding from upstream failed: a patch no longer applies, or an upstream could not be cloned.'
+          elif [ "$COMMIT" = failure ]; then
+            what='Committing or pushing the rebuilt plugins failed (for example a rebase conflict).'
+          else
+            what='The sync job failed before it reached the rebuild.'
+          fi
+          title='Upstream sync is failing'
+          body="$what Log: $RUN_URL"
+          open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$(date -u +%F): $body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

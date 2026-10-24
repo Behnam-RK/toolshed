@@ -10,18 +10,18 @@ renames=(ask-matt:compass diagnosing-bugs:diag to-questionnaire:questionnaire)
 for s in "${keep[@]}"; do
   [ -f "skills/$s/SKILL.md" ] || { echo "patch: skills/$s not found upstream" >&2; exit 1; }
 done
-for d in $(find skills -name SKILL.md -exec dirname {} \;); do
+while IFS= read -r d; do
   printf '%s\n' "${keep[@]}" | grep -qx "${d#skills/}" || rm -rf "$d"
-done
+done < <(find skills -name SKILL.md -exec dirname {} \;)
 find skills -type d -empty -delete
 
 for r in "${renames[@]}"; do
   old=${r%%:*} new=${r##*:}
   src=$(dirname "$(find skills -path "*/$old/SKILL.md")")
   mv "$src" "$(dirname "$src")/$new"
-  find skills -name '*.md' -exec sed -i.bak -E "s/(^|[^a-z-])$old([^a-z-]|$)/\1$new\2/g" {} +
+  # Lookarounds, not captured neighbours: a consumed trailing `/` hid the next `ask-matt/ask-matt`.
+  find skills -name '*.md' -exec perl -pi -e "s{(?<![a-z-])\Q$old\E(?![a-z-])}{$new}g" {} +
 done
-find skills -name '*.bak' -delete
 
 python3 - <<'PY'
 import json, pathlib
