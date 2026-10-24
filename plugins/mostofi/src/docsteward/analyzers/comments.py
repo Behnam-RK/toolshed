@@ -5,6 +5,7 @@ from pathlib import PurePosixPath
 
 from ..config import Config
 from ..findings import Finding
+from ..markdown import split_lines
 from .blocks import comment_block_findings
 
 
@@ -12,12 +13,12 @@ BLOCK_OPEN, BLOCK_CLOSE = '/*', '*/'
 
 # One left-to-right scan: the first construct claims its text, so a quote, an
 # arithmetic expression or a trailing comment hides a later `<<`. The heredoc
-# alternative owns a quoted tag (`<<'EOF'`); `<<<` is a here-string.
+# alternative owns a quoted tag; `<<<` is a here-string; `<<-`, `<<~` indent.
 SHELL_TOKEN_RE = re.compile(
     r"""
     "[^"]*" | '[^']*'
     | \$?\(\((?:[^()]|\([^()]*\))*\)\)
-    | (?<!<)<<(?!<)-?\s*(?P<quote>['"]?)(?P<tag>[A-Za-z_][A-Za-z0-9_]*)(?P=quote)
+    | (?<!<)<<(?!<)[-~]?\s*(?P<quote>['"]?)(?P<tag>[A-Za-z_][A-Za-z0-9_]*)(?P=quote)
     | (?P<comment>\s\#)
     """,
     re.VERBOSE,
@@ -42,7 +43,7 @@ def comment_runs(source: str, prefix: str, cap: int) -> list[tuple[int, int]]:
     start = length = previous = 0
     heredoc: str | None = None
     in_block = False
-    lines = source.splitlines()
+    lines = split_lines(source)
     for lineno, raw in enumerate(lines, start=1):
         stripped = raw.strip()
         if heredoc is not None:

@@ -209,6 +209,9 @@ def _same_shape(default: Any, value: Any) -> bool:
     # so `enabled = 1` would otherwise pass for a boolean knob.
     if isinstance(default, bool) or isinstance(value, bool):
         return isinstance(default, bool) and isinstance(value, bool)
+    # A whole-number knob is read as a count, so `max_chars = 1.5` is not one.
+    if isinstance(default, int):
+        return _whole_number(value)
     if isinstance(default, int | float):
         return isinstance(value, int | float)
     return isinstance(value, type(default))
@@ -240,6 +243,18 @@ OVERRIDE_KEYS = ('pattern', 'soft', 'hard', 'structure_rules', 'rules', 'status'
 # is the silent fallback the rest of this validation exists to stop.
 DOC_GATE_KEYS = ('enabled', 'routing_doc', 'trigger')
 
+# The keys each table reads. `rules` has its own per-rule check, and `overrides`
+# is a list with its own key set.
+SECTION_KEYS: dict[str, tuple[str, ...]] = {
+    'defaults': ('soft', 'hard'),
+    'exclude': ('paths', 'always_exempt'),
+    'python': ('enabled', 'runtime_surfaced_decorators', 'module_docstring_cap',
+               'docstring_cap', 'cli_help_exempts_module'),
+    'comments': ('enabled', 'prefixes'),
+    'corpus': ('doc_globs', 'code_globs', 'package_roots'),
+    'doc-gate': DOC_GATE_KEYS,
+}
+
 
 def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
     # Indexing into a section without checking it is a table turns `exclude =
@@ -248,6 +263,13 @@ def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
     value = data.get(name, {})
     if not isinstance(value, dict):
         raise ConfigError(f'[{name}] must be a table, got {value!r}')
+    keys = SECTION_KEYS.get(name, ())
+    stray = [key for key in value if keys and key not in keys]
+    if stray:
+        raise ConfigError(
+            f'[{name}]: unknown key(s) {", ".join(sorted(stray))} — '
+            f'choose from {", ".join(keys)}'
+        )
     return value
 
 
@@ -272,9 +294,11 @@ def _typed(section: str, table: dict[str, Any], key: str, expected: type, defaul
         )
     else:
         ok = isinstance(value, expected)
+    where = f'[{section}]: ' if section else ''
     if not ok:
-        where = f'[{section}]: ' if section else ''
         raise ConfigError(f'{where}{key} must be {_SHAPES[expected]}, got {value!r}')
+    if expected is int and value < 0:
+        raise ConfigError(f'{where}{key} must not be negative, got {value!r}')
     return expected(value) if expected in (int, bool) else value
 
 
@@ -292,6 +316,8 @@ def _check_opts(rule_id: str, configured: dict[str, Any]):
                 f'[rules.{rule_id}]: {key} must be '
                 f'{type(base[key]).__name__}, got {value!r}'
             )
+        if not isinstance(value, bool | str | list | dict) and value < 0:
+            raise ConfigError(f'[rules.{rule_id}]: {key} must not be negative, got {value!r}')
         # Values of a table knob, for the same reason: `tag_patterns = {a = 1}`
         # otherwise reaches `str.format` mid-run.
         if isinstance(base[key], dict) and not all(
@@ -424,12 +450,8 @@ class Config:
                 f'choose from {", ".join(sorted(SECTIONS))}'
             )
 
-        stray = [key for key in _section(data, 'doc-gate') if key not in DOC_GATE_KEYS]
-        if stray:
-            raise ConfigError(
-                f'[doc-gate]: unknown key(s) {", ".join(sorted(stray))} — '
-                f'choose from {", ".join(DOC_GATE_KEYS)}'
-            )
+        # Keys only: the hook reads the values and takes `enabled = "no"` as off.
+        _section(data, 'doc-gate')
 
         self.profile = _typed('', data, 'profile', str, 'default')
         if self.profile not in PROFILES:
@@ -440,6 +462,10 @@ class Config:
         defaults = _section(data, 'defaults')
         self.soft = _typed('defaults', defaults, 'soft', int, DEFAULT_SOFT)
         self.hard = _typed('defaults', defaults, 'hard', int, DEFAULT_HARD)
+        if self.soft > self.hard:
+            raise ConfigError(
+                f'[defaults]: soft cap {self.soft} is above the hard cap {self.hard}'
+            )
 
         # User overrides are consulted before the shipped ones, so a repo can
         # re-cap docs/adr/ without having to restate the whole table.
@@ -474,6 +500,15 @@ class Config:
                     raise ConfigError(
                         f'{override["pattern"]}: {cap} must be {_SHAPES[int]}, got {value!r}'
                     )
+                if cap in override and value < 0:
+                    raise ConfigError(
+                        f'{override["pattern"]}: {cap} must not be negative, got {value!r}'
+                    )
+            if 'soft' in override and 'hard' in override and override['soft'] > override['hard']:
+                raise ConfigError(
+                    f'{override["pattern"]}: soft cap {override["soft"]} is above '
+                    f'the hard cap {override["hard"]}'
+                )
             # Suppression is read by identity, so any other value was ignored
             # in silence: a repo writing `structure_rules = "false"` or
             # `rules = "warn"` had turned off something that never moved.
@@ -702,6 +737,8 @@ def load(root: Path, explicit: Path | None = None, profile: str | None = None) -
             data = tomllib.loads(path.read_text(encoding='utf-8'))
         except tomllib.TOMLDecodeError as exc:
             raise ConfigError(f'{path}: {exc}') from exc
+        except UnicodeDecodeError as exc:
+            raise ConfigError(f'{path}: not valid UTF-8 — {exc}') from exc
     if profile:
         data = {**data, 'profile': profile}
     return Config(data, source=path)

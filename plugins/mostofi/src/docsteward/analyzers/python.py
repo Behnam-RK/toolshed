@@ -6,6 +6,7 @@ import tokenize
 
 from ..config import WARN, Config, decorator_matches
 from ..findings import Finding
+from ..markdown import split_lines
 from .blocks import comment_block_findings
 
 
@@ -40,11 +41,13 @@ def _module_doc_is_cli_help(tree: ast.Module) -> bool:
     return any(isinstance(n, ast.Name) and n.id == '__doc__' for n in ast.walk(tree))
 
 
-def _docstrings(tree: ast.Module) -> dict[str, tuple[str, int]]:
-    found: dict[str, tuple[str, int]] = {}
+# Keyed by name and line: a property's getter and setter share a name, and a
+# dict on the name alone kept whichever came last.
+def _docstrings(tree: ast.Module) -> dict[tuple[str, int], str]:
+    found: dict[tuple[str, int], str] = {}
     module_doc = ast.get_docstring(tree, clean=False)
     if module_doc is not None:
-        found[MODULE_SCOPE] = (module_doc, 1)
+        found[MODULE_SCOPE, tree.body[0].lineno] = module_doc
 
     def visit(node: ast.AST, prefix: str):
         for child in ast.iter_child_nodes(node):
@@ -52,7 +55,7 @@ def _docstrings(tree: ast.Module) -> dict[str, tuple[str, int]]:
                 qname = f'{prefix}.{child.name}' if prefix else child.name
                 doc = ast.get_docstring(child, clean=False)
                 if doc is not None:
-                    found[qname] = (doc, child.lineno)
+                    found[qname, child.lineno] = doc
                 visit(child, qname)
             else:
                 visit(child, prefix)
@@ -61,8 +64,8 @@ def _docstrings(tree: ast.Module) -> dict[str, tuple[str, int]]:
     return found
 
 
-def _exempt_qnames(tree: ast.Module, patterns: list[str]) -> dict[str, int]:
-    exempt: dict[str, int] = {}
+def _exempt_qnames(tree: ast.Module, patterns: list[str]) -> set[tuple[str, int]]:
+    exempt: set[tuple[str, int]] = set()
 
     def visit(node: ast.AST, prefix: str, inherited: bool):
         for child in ast.iter_child_nodes(node):
@@ -70,7 +73,7 @@ def _exempt_qnames(tree: ast.Module, patterns: list[str]) -> dict[str, int]:
                 qname = f'{prefix}.{child.name}' if prefix else child.name
                 own = _is_runtime_surfaced(child, patterns)
                 if inherited or own:
-                    exempt[qname] = child.lineno
+                    exempt.add((qname, child.lineno))
                 visit(child, qname, isinstance(child, ast.ClassDef) and (own or inherited))
             else:
                 visit(child, prefix, inherited)
@@ -80,7 +83,7 @@ def _exempt_qnames(tree: ast.Module, patterns: list[str]) -> dict[str, int]:
 
 
 def _script_metadata_lines(source: str) -> set[int]:
-    lines = source.splitlines()
+    lines = split_lines(source)
     try:
         opened = next(i for i, ln in enumerate(lines, 1) if ln.rstrip() == PEP723_OPEN)
         closed = next(
@@ -145,14 +148,14 @@ def _docstring_findings(
             previous = _docstrings(ast.parse(baseline, filename=rel))
         except SyntaxError:
             previous = {}
-        old_names = set(previous)
-        old_texts = {doc for doc, _ in previous.values()}
+        old_names = {qname for qname, _ in previous}
+        old_texts = set(previous.values())
 
     strict = baseline is None
     exempt = _exempt_qnames(tree, config.runtime_surfaced)
     out: list[Finding] = []
-    for qname, (doc, line) in _docstrings(tree).items():
-        if qname in exempt:
+    for (qname, line), doc in _docstrings(tree).items():
+        if (qname, line) in exempt:
             continue
         allowed = config.module_docstring_cap if qname == MODULE_SCOPE else config.docstring_cap
         if allowed and len(doc.splitlines()) <= allowed:

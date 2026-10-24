@@ -17,11 +17,11 @@ from .markdown import (
     FRONT,
     HEADING,
     MD_LINK_RE,
-    SKIP_PREFIXES,
     TABLE,
     Doc,
     analyze,
     exempt_reason,
+    is_external,
     unfenced_lines,
 )
 from .tokens import Counter
@@ -29,6 +29,10 @@ from .tokens import Counter
 
 LINK_RE = re.compile(r'\[([^\]]*)\]\([^)]*\)')
 PUNCT_RE = re.compile(r'[^a-z0-9 ]+')
+
+# Editors on Windows write one, and left on it hides a heading, front matter or
+# an exempt marker on line 1 behind an invisible character.
+BOM = '\ufeff'
 
 # Generous for a large repo, finite for a gate that runs in a commit hook.
 GIT_TIMEOUT = 30
@@ -102,7 +106,7 @@ def _on_disk(path: Path) -> Path:
 # Every read of a tracked path goes through here, so no caller has to remember
 # that the name it reports and the name it opens can differ.
 def read_tracked(path: Path) -> str:
-    return _on_disk(path).read_text(encoding='utf-8', errors='replace')
+    return _on_disk(path).read_text(encoding='utf-8', errors='replace').removeprefix(BOM)
 
 
 def tracked(root: Path, patterns: list[str], scope: Scope = WHOLE_REPO) -> list[Path]:
@@ -184,25 +188,43 @@ def walk(
 # `HEAD:./x` and `--relative` are the cwd-relative spellings. `tracked` lists
 # from `--root`, so with a root inside a repo the repo-root-relative default
 # looked every path up in the wrong place and read as a brand-new file.
-def baseline(root: Path, rel: str) -> str | None:
-    text = git(root, 'show', f'HEAD:./{rel}')
+def baseline(root: Path, rel: str, ref: str | None = None) -> str | None:
+    ref = ref or 'HEAD'
+    text = git(root, 'show', f'{ref}:./{rel}')
     if text is not None:
-        return text
+        return text.removeprefix(BOM)
     # -z here too, for the reason `tracked` gives: without it git quotes a
     # non-ASCII path as "src/caf\303\251.py", which never equals `rel`, so the
     # rename's baseline was lost. With -z: status, old, new, each NUL-terminated.
     status = git(root, 'diff', '--cached', '--find-renames', '--relative', '-z',
-                 '--name-status', '--diff-filter=R')
+                 '--name-status', '--diff-filter=R', ref)
     fields = [f for f in (status or '').split('\0') if f]
     for i in range(0, len(fields) - 2, 3):
         if fields[i].startswith('R') and fields[i + 2] == rel:
-            return git(root, 'show', f'HEAD:./{fields[i + 1]}')
+            old = git(root, 'show', f'{ref}:./{fields[i + 1]}')
+            return None if old is None else old.removeprefix(BOM)
     return None
+
+
+# What `--base REF` is compared against: where the branch left REF, which is what
+# a review sees, not REF's tip. A ref git cannot resolve is an error, as it is for
+# `scan`; only in a shallow clone is it genuinely absent, so files read as new.
+def base_rev(root: Path, ref: str | None) -> str | None:
+    if not ref:
+        return None
+    if git(root, 'rev-parse', '--verify', '--quiet', f'{ref}^{{commit}}') is None:
+        if git(root, 'rev-parse', '--is-shallow-repository') == 'true\n':
+            print(f'mostofi: --base {ref!r} is outside a shallow clone — '
+                  'files are judged as new', file=sys.stderr)
+            return None
+        raise GitUnavailable(f'cannot resolve --base {ref!r} as a git ref')
+    merged = (git(root, 'merge-base', ref, 'HEAD') or '').strip()
+    return merged or ref
 
 
 def package_of(rel: str, roots: list[str]) -> str | None:
     parts = rel.split('/')
-    if len(parts) < 3 or not any(rel.startswith(root) for root in roots):
+    if len(parts) < 3 or not any(rel.startswith(root.rstrip('/') + '/') for root in roots):
         return None
     return '/'.join(parts[:2])
 
@@ -342,9 +364,12 @@ def duplicate_findings(
     return out, worst
 
 
-ADR_NUMBER_RE = re.compile(r'(\d+)-')
+# A number is short, and is not the year of a date-named slug: `2024-01-15-a.md`
+# is not ADR 2024, while `0001-x.md` is ADR 0001.
+ADR_NUMBER_RE = re.compile(r'(?!(?:19|20)\d\d-\d{1,2}-)(\d{1,4})-')
 UNRELEASED_RE = re.compile(
-    r'^##\s+\[?(\d+\.\d+\.\d+)\]?\s+[-\u2013\u2014]\s+Unreleased\s*$', re.IGNORECASE
+    r'^##\s+\[?v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\]?\s+[-\u2013\u2014]\s+Unreleased\s*$',
+    re.IGNORECASE,
 )
 
 
@@ -411,7 +436,7 @@ def _adr_index_findings(
         for match in MD_LINK_RE.finditer(line):
             # An external link or a bare anchor is not a row, and joined onto the
             # folder it would read as a path a permissive `adr_glob` can match.
-            if match.group(1).startswith(SKIP_PREFIXES):
+            if is_external(match.group(1)):
                 continue
             link = match.group(1).split('#', 1)[0]
             target = posixpath.normpath(

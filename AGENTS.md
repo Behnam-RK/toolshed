@@ -15,7 +15,8 @@ plugin under `plugins/`:
 - Read its README and a sibling file of the same kind (a skill reference, an
   analyzer, a test) and mirror it.
 - mostofi's engine is `plugins/mostofi/src/docsteward`. Its tests:
-  `uv run --group test pytest`. The doc gate on this repo: `uv run mostofi
+  `uv run --group test coverage run -m pytest && uv run --group test coverage report`
+  (fails under 100% line and branch coverage). The doc gate on this repo: `uv run mostofi
   check`, configured by `.docs.toml` (upstream plugins excluded).
 - Skill and reference prose is measured by that gate; keep SKILL.md under its
   hard cap and move detail into `references/`.

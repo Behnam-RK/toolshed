@@ -105,9 +105,8 @@ def _code_globs(root: Path, lang: str | None) -> list[str]:
     out: list[str] = []
     for name in langs:
         if name not in LANG_GLOBS:
-            raise SystemExit(
-                f'mostofi init: unknown --lang {name!r} — choose from '
-                f'{", ".join(sorted(LANG_GLOBS))}'
+            raise ValueError(
+                f'unknown --lang {name!r} — choose from {", ".join(sorted(LANG_GLOBS))}'
             )
         out += [g for g in LANG_GLOBS[name] if g not in out]
     return out
@@ -223,6 +222,9 @@ def _targets(adr_dir: str, guide: bool = True, adr: bool = True) -> dict[str, st
     return out
 
 
+GLOB_CHARS = '*?['
+
+
 def _repo_adr(root: Path) -> tuple[str, bool]:
     # The drift check has no flags to say where the log went or whether it has
     # an index, but the config the same init wrote does; a broken or absent one
@@ -234,7 +236,7 @@ def _repo_adr(root: Path) -> tuple[str, bool]:
     # The literal directory above the first wildcard: the rule also accepts a
     # recursive `docs/adr/**/[0-9]*.md`, whose parent is no path.
     parts = PurePosixPath(opts['adr_glob']).parent.parts
-    fixed = str(PurePosixPath(*takewhile(lambda part: not set(part) & set('*?['), parts)))
+    fixed = str(PurePosixPath(*takewhile(lambda part: not set(part) & set(GLOB_CHARS), parts)))
     return (DEFAULT_ADR_DIR if fixed == '.' else fixed), opts['index'] != ''
 
 
@@ -250,12 +252,13 @@ def _write(
     written.append(str(path))
 
 
-def _drift(root: Path) -> int:
-    adr_dir, indexed = _repo_adr(root)
+def _drift(root: Path, adr_dir: str | None, guide: bool, adr: bool) -> int:
+    kept_dir, indexed = _repo_adr(root)
+    adr_dir = adr_dir or kept_dir
     link_to = _log_link(root, adr_dir, indexed)
     drifted = []
     missing = []
-    for name, target in _targets(adr_dir).items():
+    for name, target in _targets(adr_dir, guide, adr).items():
         landed = root / target
         if not landed.exists():
             missing.append(target)
@@ -276,9 +279,25 @@ def _drift(root: Path) -> int:
 def _relative_dir(value: str) -> str | None:
     path = PurePosixPath(value.strip().rstrip('/'))
     # The root itself is no log directory: `./**` and `./0001-*.md` match nothing.
-    if not value.strip() or path.is_absolute() or '..' in path.parts or str(path) == '.':
+    # A wildcard would be read back as a glob by `_repo_adr` and the rule alike.
+    if (not value.strip() or path.is_absolute() or '..' in path.parts or str(path) == '.'
+            or set(value) & set(GLOB_CHARS)):
         return None
     return str(path)
+
+
+def _warn_kept_config(root: Path, chosen: str, force: bool):
+    # A kept config keeps its own `adr_glob`: the flag then only moves the
+    # templates, and the gate would police a directory that has none.
+    if force or not (root / CONFIG_NAME).exists():
+        return
+    kept = _repo_adr(root)[0]
+    if kept != chosen:
+        print(
+            f'mostofi init: --adr-dir {chosen!r} differs from the kept {CONFIG_NAME} '
+            f'(its ADR log is {kept!r}); --force rewrites the config',
+            file=sys.stderr,
+        )
 
 
 def init_repo(
@@ -292,10 +311,23 @@ def init_repo(
     exclude: list[str] | None = None,
     doc_gate: bool | None = None,
     routing_doc: str | None = None,
-    adr_dir: str = DEFAULT_ADR_DIR,
+    adr_dir: str | None = None,
 ) -> int:
+    if not root.is_dir():
+        print(f'mostofi init: --root {str(root)!r} is not a directory', file=sys.stderr)
+        return 2
+    # Not given: the decision log the repo's own config names, else the shipped one.
+    chosen = None
+    if adr_dir is not None:
+        chosen = _relative_dir(adr_dir)
+        if chosen is None:
+            print(f'mostofi init: --adr-dir {adr_dir!r} must be a path inside the repo, '
+                  f'without wildcards', file=sys.stderr)
+            return 2
     if drift_check:
-        return _drift(root)
+        if chosen is not None:
+            _warn_kept_config(root, chosen, force)
+        return _drift(root, chosen, write_guide, write_adr)
     if profile not in PROFILES:
         print(
             f'mostofi init: unknown profile {profile!r} — choose from '
@@ -303,19 +335,22 @@ def init_repo(
             file=sys.stderr,
         )
         return 2
-    chosen = _relative_dir(adr_dir)
     if chosen is None:
-        print(f'mostofi init: --adr-dir {adr_dir!r} must be a path inside the repo',
-              file=sys.stderr)
-        return 2
+        chosen = _repo_adr(root)[0] if (root / CONFIG_NAME).exists() else DEFAULT_ADR_DIR
+    else:
+        _warn_kept_config(root, chosen, force)
 
     # A decision log the repo already keeps elsewhere may have no index; pointing
     # the rule at a missing README would report every ADR as unindexed.
     adr_index = None
     if not write_adr and not (root / chosen / 'README.md').exists():
         adr_index = ''
-    text = _config_text(profile, _code_globs(root, lang), exclude, doc_gate, routing_doc,
-                        chosen, adr_index)
+    try:
+        globs = _code_globs(root, lang)
+    except ValueError as exc:
+        print(f'mostofi init: {exc}', file=sys.stderr)
+        return 2
+    text = _config_text(profile, globs, exclude, doc_gate, routing_doc, chosen, adr_index)
     # Checked against the engine before anything lands: a flag value the
     # validator rejects would otherwise leave a config every later run refuses.
     try:
@@ -329,18 +364,23 @@ def init_repo(
     link_to = INDEX if write_adr else _log_link(root, chosen, adr_index != '')
     written: list[str] = []
     skipped: list[str] = []
-    _write(root / CONFIG_NAME, text, force, written, skipped)
-    for name, target in _targets(chosen, write_guide, write_adr).items():
-        # `--force` refreshes the templates, but a seeded file is the repo's
-        # own content after the first ADR lands; overwriting it deleted the
-        # index that `SEEDED_ONLY` exists to protect from the drift check.
-        seeded = name in SEEDED_ONLY
-        note = (
-            '(seeded once; never overwritten)' if seeded
-            else '(exists; --force to overwrite)'
-        )
-        _write(root / target, _template(name, chosen, link_to),
-               force and not seeded, written, skipped, note)
+    try:
+        _write(root / CONFIG_NAME, text, force, written, skipped)
+        for name, target in _targets(chosen, write_guide, write_adr).items():
+            # `--force` refreshes the templates, but a seeded file is the repo's
+            # own content after the first ADR lands; overwriting it deleted the
+            # index that `SEEDED_ONLY` exists to protect from the drift check.
+            seeded = name in SEEDED_ONLY
+            note = (
+                '(seeded once; never overwritten)' if seeded
+                else '(exists; --force to overwrite)'
+            )
+            _write(root / target, _template(name, chosen, link_to),
+                   force and not seeded, written, skipped, note)
+    except OSError as exc:
+        print(f'mostofi init: cannot write {exc.filename or root}: {exc.strerror}',
+              file=sys.stderr)
+        return 2
 
     for path in written:
         print(f'wrote    {path}')

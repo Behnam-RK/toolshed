@@ -14,8 +14,9 @@ if [ ! -d "$here/src/docsteward" ]; then
   exit 1
 fi
 
+# shellcheck source=../scripts/find-python.sh source-path=SCRIPTDIR
 . "$here/scripts/find-python.sh"
 find_python || { echo "mostofi: $python_missing" >&2; exit 1; }
 
-exec "$py" -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from docsteward.cli import main; raise SystemExit(main())' \
+exec "$py" -P -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from docsteward.cli import main; raise SystemExit(main())' \
   "$here/src" "$@"

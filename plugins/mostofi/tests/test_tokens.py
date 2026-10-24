@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -76,3 +77,17 @@ def test_cache_dir_ignores_a_relative_xdg_cache_home(monkeypatch, tmp_path):
     monkeypatch.setenv('XDG_CACHE_HOME', 'relative/cache')
     monkeypatch.setenv('HOME', str(tmp_path))
     assert tokens._cache_dir() == tmp_path / '.cache' / 'docsteward' / 'tiktoken'
+
+
+def test_special_token_text_in_a_doc_is_counted_not_refused(monkeypatch):
+    seen = {}
+
+    class Encoding:
+        def encode(self, text, **kwargs):
+            seen.update(kwargs)
+            return [1]
+
+    fake = SimpleNamespace(get_encoding=lambda name: Encoding())
+    monkeypatch.setitem(sys.modules, 'tiktoken', fake)
+    assert tokens._tiktoken().count('<|endoftext|>') == 1
+    assert seen == {'disallowed_special': ()}

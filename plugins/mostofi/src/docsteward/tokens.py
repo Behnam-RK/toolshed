@@ -60,7 +60,14 @@ def _tiktoken() -> Counter:
     Path(os.environ['TIKTOKEN_CACHE_DIR']).mkdir(parents=True, exist_ok=True)
     import tiktoken
 
-    return Counter(f'tiktoken/{ENCODING}', 1.0, tiktoken.get_encoding(ENCODING).encode)
+    encoding = tiktoken.get_encoding(ENCODING)
+
+    # A doc quoting `<|endoftext|>` is text to be counted, not a request the
+    # encoder refuses with a ValueError that killed the whole run.
+    def encode(text: str) -> list[int]:
+        return encoding.encode(text, disallowed_special=())
+
+    return Counter(f'tiktoken/{ENCODING}', 1.0, encode)
 
 
 def _forced_estimate() -> bool:

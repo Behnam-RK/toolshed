@@ -1,9 +1,11 @@
 name: mostofi
+# Everything but the synced upstream plugins, which the gate excludes: the gate
+# also measures the root docs, scripts/, patches/ and the packaging files.
 on:
   push:
-    paths: ["plugins/mostofi/**", "plugins/momayez/**", "plugins/dabir/**", "pyproject.toml", "uv.lock", ".docs.toml", ".github/workflows/mostofi.yml"]
+    paths-ignore: ["plugins/context-mode/**", "plugins/mattpocock-skills/**"]
   pull_request:
-    paths: ["plugins/mostofi/**", "plugins/momayez/**", "plugins/dabir/**", "pyproject.toml", "uv.lock", ".docs.toml", ".github/workflows/mostofi.yml"]
+    paths-ignore: ["plugins/context-mode/**", "plugins/mattpocock-skills/**"]
 
 permissions:
   contents: read
@@ -20,7 +22,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
       - uses: astral-sh/setup-uv@v6
-      - name: Tests
-        run: uv run --python ${{ matrix.python }} --group test pytest -q
+      - name: Tests, with 100% line and branch coverage
+        run: |
+          uv run --locked --python ${{ matrix.python }} --group test coverage run -m pytest -q
+          uv run --locked --python ${{ matrix.python }} --group test coverage report
       - name: Doc gate on toolshed itself
-        run: uv run --python ${{ matrix.python }} mostofi check
+        run: uv run --locked --python ${{ matrix.python }} mostofi check

@@ -61,6 +61,40 @@ def test_module_docstring_used_as_cli_help_is_exempt():
     assert len(check(source, strict(cli_help_exempts_module=False))) == 1
 
 
+def test_module_docstring_is_reported_on_its_own_line():
+    [finding] = check('# header\n\n"""Doc."""\n')
+    assert (finding.rel, finding.line) == ('pkg/mod.py', 3)
+
+
+def test_a_property_getter_and_setter_each_keep_their_docstring():
+    found = check('''
+        class A:
+            @property
+            def x(self):
+                """Get."""
+
+            @x.setter
+            def x(self, value):
+                """Set."""
+    ''')
+    assert [(f.line, f.message.split(' ')[0]) for f in found] == [(4, 'A.x'), (8, 'A.x')]
+
+
+def test_a_surfaced_setter_does_not_exempt_the_getter():
+    source = '''
+        class A:
+            @property
+            def x(self):
+                """Get."""
+
+            @x.setter
+            def x(self, value):
+                """Set."""
+    '''
+    found = check(source, strict(runtime_surfaced_decorators=['*.setter']))
+    assert [f.line for f in found] == [4]
+
+
 def test_docstring_cap_allows_short_docstrings():
     source = '''
         def short():
@@ -104,12 +138,36 @@ def test_runtime_surfaced_decorators_exempt():
     assert names(found) == ['run.helper', 'plain']
 
 
+def test_decorators_with_no_dotted_name_surface_nothing():
+    source = '''
+        @make()()
+        def called():
+            """Decorated by a call of a call."""
+
+        @table[0]
+        def indexed():
+            """Decorated by a subscript."""
+
+        @mcp.tool
+        def run():
+            """Shown to the model."""
+    '''
+    found = check(source, strict(runtime_surfaced_decorators=['make', 'table', '*.tool']))
+    assert names(found) == ['called', 'indexed']
+
+
 def test_baseline_demotes_pre_existing_docstrings():
     old = 'def f():\n    """Old."""\n'
     new = 'def f():\n    """Old."""\n\ndef g():\n    """New."""\n'
     found = check(new, baseline=old)
     assert [(f.message.split(' ')[0], f.severity) for f in found] == [('f', WARN), ('g', FAIL)]
     assert found[0].message.endswith('(pre-existing)')
+
+
+def test_an_unparseable_baseline_judges_every_docstring_as_new():
+    found = check('def f():\n    """Old."""\n', baseline='def f(:\n    """Old."""\n')
+    assert [(f.message.split(' ')[0], f.severity) for f in found] == [('f', FAIL)]
+    assert not found[0].message.endswith('(pre-existing)')
 
 
 def test_baseline_follows_a_renamed_function_by_text():
@@ -163,6 +221,15 @@ def test_python_shebang_is_not_part_of_a_block():
     assert check('#!/usr/bin/env python\n' + block(3), Config()) == []
 
 
+def test_every_over_cap_python_block_is_reported():
+    source = block(4) + 'x = 1\n' + block(5) + 'y = 2\n' + block(3)
+    found = check(source, Config())
+    assert [(f.line, f.message) for f in found] == [
+        (1, 'comment block of 4 lines (advisory cap 3)'),
+        (6, 'comment block of 5 lines (advisory cap 3)'),
+    ]
+
+
 def test_comment_block_max_lines_knob():
     cfg = Config({'rules': {'comment-block': {'max_lines': 1}}})
     assert len(check('# a\n# b\n', cfg)) == 1
@@ -209,6 +276,16 @@ def test_heredoc_body_is_not_a_comment_block():
 def test_comment_mentioning_a_heredoc_does_not_open_one():
     source = '# write it with cat <<EOF\n# a\n# b\n# c\n# d\n'
     assert comments.comment_runs(source, '#', 3) == [(1, 5)]
+
+
+def test_ruby_and_shell_squiggly_heredoc_is_a_heredoc():
+    source = 'cat <<~EOF\n  # a\n  # b\n  # c\n  # d\n  EOF\necho hi\n'
+    assert comments.comment_runs(source, '#', 3) == []
+
+
+def test_comment_run_lines_ignore_exotic_line_breaks():
+    source = 'x = "a\u2028b"  # note\n# a\n# b\n# c\n# d\n'
+    assert comments.comment_runs(source, '#', 3) == [(2, 4)]
 
 
 def test_unknown_suffix_and_custom_prefix():

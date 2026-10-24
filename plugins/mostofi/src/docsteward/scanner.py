@@ -4,27 +4,35 @@ import re
 import sys
 from functools import cache
 from pathlib import Path, PurePosixPath
+from urllib.parse import unquote
 
 from .config import Config, glob_match
 from .corpus import GitUnavailable, git, package_of, read_tracked
 from .findings import Finding
-from .markdown import MD_LINK_RE, SKIP_PREFIXES, unfenced_lines
+from .markdown import (
+    HEADING_RE,
+    INLINE_CODE_RE,
+    MD_LINK_RE,
+    is_external,
+    split_lines,
+    unfenced_lines,
+)
 from .scaffold import MARKERS
 
 
 PATH_RE = re.compile(r'`([\w][\w./@-]*\.[A-Za-z0-9]{1,5})`')
 ALLOW_RE = re.compile(r'<!--\s*docs:\s*allow\s+stale-file-ref\s*-->')
-CHECKBOX_RE = re.compile(r'^\s*[-*+]\s+\[ \]\s')
+CHECKBOX_RE = re.compile(r'^\s*[-*+]\s+\[ \](?:\s|$)')
 CITATION_RE = re.compile(
     r'`(?P<path_a>[\w./-]+\.md)`\'s\s+"(?P<title_a>[^"]+)"'
     r'|"(?P<title_b>[^"]+)"\s+section of\s+`?(?P<path_b>[\w./-]+\.md)`?'
 )
-HEADING_RE = re.compile(r'^[ \t]{0,3}#{1,6}\s+(?P<title>.*?)\s*#*\s*$')
 
 
 def _candidates(root: Path, rel: str, target: str, config: Config) -> list[Path]:
-    target = target.split('#', 1)[0].strip()
-    if not target or target.startswith(SKIP_PREFIXES):
+    # Decoded, because a link spells a space `%20` and the file does not.
+    target = unquote(target.split('#', 1)[0].strip())
+    if not target or is_external(target):
         return []
     if target.startswith('/'):
         return [root / target.lstrip('/')]
@@ -46,6 +54,15 @@ def _candidates(root: Path, rel: str, target: str, config: Config) -> list[Path]
     return found
 
 
+# A target past the filesystem's name limit raises from `exists` rather than
+# answering no, and so does one with a NUL in it.
+def _exists(path: Path) -> bool:
+    try:
+        return path.exists()
+    except (OSError, ValueError):
+        return False
+
+
 @cache
 def _has_manifest(directory: Path) -> bool:
     return any((directory / name).is_file() for name in MARKERS)
@@ -53,9 +70,7 @@ def _has_manifest(directory: Path) -> bool:
 
 def _project_of(root: Path, rel: str) -> Path | None:
     # The repo root is a candidate already; only a project below it adds one.
-    for parent in PurePosixPath(rel).parents:
-        if parent == PurePosixPath('.'):
-            return None
+    for parent in PurePosixPath(rel).parents[:-1]:
         if _has_manifest(root / parent):
             return root / parent
     return None
@@ -90,21 +105,23 @@ def stale_file_refs(
     if not rule.on:
         return []
     ignore = rule.opts['ignore_patterns']
-    lines = text.splitlines()
+    lines = split_lines(text)
     out: list[Finding] = []
     # Fenced blocks are skipped: a link in a sample document is sample content.
     for lineno, line in unfenced_lines(text):
-        targets = [m.group(1) for m in MD_LINK_RE.finditer(line)]
+        # Inline code is the same: a link shown in backticks is an example, while
+        # the backticks are what mark a bare path as a reference below.
+        targets = [m.group(1) for m in MD_LINK_RE.finditer(INLINE_CODE_RE.sub('', line))]
         targets += [m.group(1) for m in PATH_RE.finditer(line) if '/' in m.group(1)]
         for target in targets:
             # No candidates means the target is not a file reference at all — a
             # URL or a bare anchor — which is not a stale one.
             candidates = _candidates(root, rel, target, config)
-            if not candidates or any(c.exists() for c in candidates):
+            if not candidates or any(_exists(c) for c in candidates):
                 continue
             if any(glob_match(target.split('#', 1)[0], pattern) for pattern in ignore):
                 continue
-            if suffixes is not None and _bare(target) in suffixes:
+            if suffixes is not None and _bare(unquote(target)) in suffixes:
                 continue
             if _allowed(lines, lineno):
                 continue
@@ -126,10 +143,18 @@ def _bare(target: str) -> str:
 # Compiled once per marker list rather than once per file scanned.
 @cache
 def _marker_re(markers: tuple[str, ...]) -> re.Pattern[str]:
-    return re.compile(r'\b(' + '|'.join(re.escape(m) for m in markers) + r')\b')
+    # Not `\b`, which needs a word character beside it: `TODO:` and `@todo` end
+    # or start in punctuation and could never match.
+    return re.compile(r'(?<!\w)(' + '|'.join(re.escape(m) for m in markers) + r')(?!\w)')
 
 
-def todo_markers(rel: str, text: str, config: Config) -> list[Finding]:
+def _lines(text: str, prose: bool):
+    return unfenced_lines(text) if prose else enumerate(split_lines(text), start=1)
+
+
+# `prose` is the caller's word that this is a document: only there is a fence
+# sample content, while in source the same characters are code to be read.
+def todo_markers(rel: str, text: str, config: Config, prose: bool = True) -> list[Finding]:
     rule = config.rule('todo-marker', rel)
     markers = tuple(rule.opts['markers'])
     # `markers = []` is a valid list of strings, so it reaches here — and an
@@ -140,7 +165,7 @@ def todo_markers(rel: str, text: str, config: Config) -> list[Finding]:
     pattern = _marker_re(markers)
     return [
         Finding(rel, lineno, rule.id, rule.severity, f'{match.group(1)} marker left in place')
-        for lineno, line in enumerate(text.splitlines(), start=1)
+        for lineno, line in _lines(text, prose)
         if (match := pattern.search(line))
     ]
 
@@ -151,7 +176,7 @@ def open_checkboxes(rel: str, text: str, config: Config) -> list[Finding]:
         return []
     return [
         Finding(rel, lineno, rule.id, rule.severity, 'open checkbox in a shipped doc')
-        for lineno, line in enumerate(text.splitlines(), start=1)
+        for lineno, line in unfenced_lines(text)
         if CHECKBOX_RE.match(line)
     ]
 
@@ -162,7 +187,8 @@ def _headings(path: Path) -> set[str]:
     except OSError:
         return set()
     out = set()
-    for line in text.splitlines():
+    # Not a heading in a fence: a sample document's `## Install` is not one.
+    for _, line in unfenced_lines(text):
         match = HEADING_RE.match(line)
         if match:
             out.add(re.sub(r'[`*_]', '', match.group('title')).strip().lower())
@@ -176,7 +202,7 @@ def section_citations(root: Path, rel: str, text: str, config: Config) -> list[F
     out: list[Finding] = []
     # One parse per cited file, not one per citation on every line.
     headings: dict[Path, set[str]] = {}
-    for lineno, line in enumerate(text.splitlines(), start=1):
+    for lineno, line in enumerate(split_lines(text), start=1):
         for match in CITATION_RE.finditer(line):
             path = match.group('path_a') or match.group('path_b')
             title = match.group('title_a') or match.group('title_b')
@@ -185,7 +211,7 @@ def section_citations(root: Path, rel: str, text: str, config: Config) -> list[F
             # protocol-relative `//host/x.md` reads as one to the pattern above.
             if not candidates:
                 continue
-            resolved = next((c for c in candidates if c.exists()), None)
+            resolved = next((c for c in candidates if _exists(c)), None)
             if resolved is None:
                 out.append(
                     Finding(rel, lineno, rule.id, rule.severity,

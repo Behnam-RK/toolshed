@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import errno
+from pathlib import Path
+
+import pytest
 from helpers import commit, config, counter, doc, git, prose, repo, rules, write
 
 from docsteward import corpus, scanner
@@ -89,6 +93,57 @@ def test_muted_subtree_skips_every_rule():
     cfg = Config({'defaults': {'soft': 10, 'hard': 20},
                   'overrides': [{'pattern': 'docs/**', 'rules': 'off'}]})
     assert findings_for(doc(prose(40)), cfg) == []
+
+
+# --- hard-cap hints -----------------------------------------------------------
+
+
+def hard_cap_hint(text, cfg=SMALL_CAPS, **kwargs):
+    [finding] = [f for f in findings_for(doc(text), cfg, **kwargs) if f.rule == 'over-hard-cap']
+    return finding.hint
+
+
+def test_hint_moves_a_labelled_fence_that_is_the_overage():
+    text = '# T\n\n```python\n' + 'x = 1\n' * 60 + '```\n'
+    assert hard_cap_hint(text) == (
+        'move the python block at L3-64 (62 lines) out to docs/examples/python and link to it'
+    )
+
+
+def test_hint_leaves_a_fence_alone_when_prose_is_the_overage():
+    text = '# T\n\n```python\n' + 'x = 1\n' * 25 + '```\n\n' + prose(100)
+    assert hard_cap_hint(text).startswith('no single fix stands out')
+
+
+def test_hint_points_at_a_duplicate_that_covers_the_overage():
+    text = prose(40)
+    hint = hard_cap_hint(text, duplicate_tokens=30, duplicate_with='docs/other.md')
+    assert hint.startswith('~30 tok of this also appears in docs/other.md')
+    assert 'link' in hint
+    assert 'also appears' not in hard_cap_hint(text, duplicate_tokens=5, duplicate_with='x.md')
+    assert 'also appears' not in hard_cap_hint(text, duplicate_tokens=30)
+
+
+def test_hint_splits_at_the_most_balanced_h2_and_keeps_the_first_of_a_tie():
+    cfg = config(defaults={'soft': 100, 'hard': 250})
+    hint = hard_cap_hint(sections(3, 100), cfg)
+    assert hint.startswith('split at "## Section 1": docs/guide.md keeps ~')
+    assert 'docs/section-1.md takes ~' in hint
+
+
+def test_hint_names_the_section_holding_most_of_the_doc():
+    cfg = config(defaults={'soft': 50, 'hard': 100})
+    text = '# Big\n\n' + prose(150) + '\n# Small\n\n' + prose(100)
+    hint = hard_cap_hint(text, cfg)
+    assert hint.startswith('cut ~')
+    assert '"# Big"' in hint
+    assert '60% of the doc' in hint
+
+
+def test_hint_does_not_name_a_section_that_is_the_whole_doc():
+    cfg = config(defaults={'soft': 50, 'hard': 100})
+    text = '# Big\n\n' + prose(400) + '\n# Tiny\n\nx\n'
+    assert hard_cap_hint(text, cfg).startswith('no single fix stands out')
 
 
 # --- structure ----------------------------------------------------------------
@@ -252,6 +307,40 @@ def test_suffix_index_accepts_a_tracked_suffix(tmp_path):
     assert len(stale(tmp_path, '[x](../pkg/mod.py)\n', suffixes=frozenset({'pkg/mod.py'}))) == 1
 
 
+@pytest.mark.parametrize('target', [
+    'ftp://h/a.md', 'ssh://git@h/a.md', 'HTTPS://x.io/a.md', 'git+ssh://h/a.md', 'Mailto:a@b.io',
+])
+def test_any_url_scheme_is_external_in_any_case(tmp_path, target):
+    assert stale(tmp_path, f'[x]({target})\n') == []
+
+
+def test_a_link_shown_in_inline_code_is_an_example(tmp_path):
+    assert stale(tmp_path, 'write `[x](missing.md)` to link\n') == []
+    assert len(stale(tmp_path, 'write [x](missing.md) to link\n')) == 1
+
+
+def test_a_percent_encoded_target_names_the_decoded_file(tmp_path):
+    write(tmp_path, {'docs/my notes.md': ''})
+    assert stale(tmp_path, '[x](my%20notes.md)\n') == []
+
+
+def test_a_target_with_parentheses_and_a_single_quoted_title(tmp_path):
+    write(tmp_path, {'docs/foo_(bar).md': '', 'docs/baz.md': ''})
+    assert stale(tmp_path, "[x](foo_(bar).md) and [y](baz.md 'the title')\n") == []
+    [finding] = stale(tmp_path, '[x](gone_(bar).md)\n')
+    assert 'gone_(bar).md' in finding.message
+
+
+def test_a_target_too_long_for_the_filesystem_is_just_missing(tmp_path, monkeypatch):
+    # Python 3.12 and 3.13 raise from `Path.exists` here; 3.14 answers False.
+    def too_long(self):
+        raise OSError(errno.ENAMETOOLONG, 'File name too long')
+
+    monkeypatch.setattr(Path, 'exists', too_long)
+    [finding] = stale(tmp_path, f'[x]({"a" * 300}.md)\n')
+    assert finding.rule == 'stale-file-ref'
+
+
 # --- todo / checkbox / citation ----------------------------------------------
 
 
@@ -268,6 +357,24 @@ def test_todo_marker():
     ]
 
 
+def test_todo_marker_with_punctuation_in_the_marker():
+    cfg = Config({'rules': {'todo-marker': {'severity': 'warn', 'markers': ['TODO:', '@todo']}}})
+    found = scanner.todo_markers('a.md', 'a TODO: x\n// @todo y\nTODOS: no\nmy@todo\n', cfg)
+    assert [f.line for f in found] == [1, 2]
+
+
+def test_todo_marker_skips_a_fenced_example_in_a_doc_only():
+    text = 'real TODO\n```\nsample TODO\n```\n'
+    cfg = rules(todo_marker='warn')
+    assert [f.line for f in scanner.todo_markers('a.md', text, cfg)] == [1]
+    assert [f.line for f in scanner.todo_markers('a.py', text, cfg, prose=False)] == [1, 3]
+
+
+def test_todo_marker_line_numbers_ignore_exotic_line_breaks():
+    found = scanner.todo_markers('a.md', 'a\u2028b\x0cc\nTODO\n', rules(todo_marker='warn'))
+    assert [f.line for f in found] == [2]
+
+
 def test_todo_marker_custom_and_empty_lists():
     custom = Config({'rules': {'todo-marker': {'severity': 'warn', 'markers': ['NOTE']}}})
     assert [f.line for f in scanner.todo_markers('a.md', 'TODO\nNOTE\n', custom)] == [2]
@@ -279,6 +386,22 @@ def test_open_checkbox():
     text = '- [ ] open\n- [x] done\n* [ ] another\n'
     found = scanner.open_checkboxes('a.md', text, rules(open_checkbox='fail'))
     assert [(f.line, f.severity) for f in found] == [(1, FAIL), (3, FAIL)]
+
+
+def test_open_checkbox_at_the_end_of_a_line_and_not_in_a_fence():
+    text = '- [ ]\n```\n- [ ] sample\n```\n- [ ] real\n'
+    found = scanner.open_checkboxes('a.md', text, rules(open_checkbox='fail'))
+    assert [f.line for f in found] == [1, 5]
+
+
+def test_section_citation_keeps_a_trailing_hash_and_ignores_fenced_headings(tmp_path):
+    write(tmp_path, {'docs/other.md': '# Other\n\n## Learning C#\n\n```md\n## Sample\n```\n'})
+    text = (
+        '`docs/other.md`\'s "Learning C#" is there\n'
+        '`docs/other.md`\'s "Sample" is only in a fence\n'
+    )
+    found = scanner.section_citations(tmp_path, 'README.md', text, rules(section_citation='warn'))
+    assert [f.line for f in found] == [2]
 
 
 def test_section_citation(tmp_path):
@@ -313,6 +436,25 @@ def test_adr_number_collision(tmp_path):
     [finding] = corpus.adr_findings(adr_repo(tmp_path, index), Config())
     assert finding.rule == 'adr-number-collision'
     assert 'ADR number 0001 is held by 2 files' in finding.message
+
+
+def test_date_named_adrs_are_not_numbered(tmp_path):
+    repo(tmp_path, {
+        'docs/adr/2024-01-15-a.md': '# a\n', 'docs/adr/2024-03-01-b.md': '# b\n',
+        'docs/adr/README.md': '[a](2024-01-15-a.md)\n[b](2024-03-01-b.md)\n',
+    })
+    cfg = Config({'rules': {'adr-number-collision': {'adr_glob': 'docs/adr/*.md'}}})
+    assert corpus.adr_findings(tmp_path, cfg) == []
+
+
+def test_a_short_number_ahead_of_a_slug_still_collides(tmp_path):
+    repo(tmp_path, {
+        'docs/adr/0001-a.md': '# a\n', 'docs/adr/0001-b.md': '# b\n', 'docs/adr/7-c.md': '# c\n',
+        'docs/adr/7-d.md': '# d\n',
+    })
+    cfg = Config({'rules': {'adr-number-collision': {'adr_glob': 'docs/adr/*.md', 'index': ''}}})
+    found = corpus.adr_findings(tmp_path, cfg)
+    assert [f.message.split(' is ')[0] for f in found] == ['ADR number 0001', 'ADR number 7']
 
 
 def test_adr_index_rows(tmp_path):
@@ -352,6 +494,23 @@ def test_changelog_unreleased_but_tagged(tmp_path):
     assert 'tag v1.0.0 exists' in finding.message
 
 
+def test_changelog_heading_spellings(tmp_path):
+    repo(tmp_path, {'CHANGELOG.md': (
+        '## [v1.0.0] - Unreleased\n## [2.0.0-rc.1] - Unreleased\n## 3.0.0 - Unreleased\n'
+    )})
+    for tag in ('v1.0.0', 'v2.0.0-rc.1', 'v3.0.0'):
+        git(tmp_path, 'tag', tag)
+    found = corpus.changelog_findings(tmp_path, Config())
+    assert [f.line for f in found] == [1, 2, 3]
+    assert [f.message.split(' is ')[0] for f in found] == ['1.0.0', '2.0.0-rc.1', '3.0.0']
+
+
+def test_package_of_matches_a_whole_root_directory():
+    assert corpus.package_of('apps/shop/docs/a.md', ['apps']) == 'apps/shop'
+    assert corpus.package_of('apps2/shop/docs/a.md', ['apps']) is None
+    assert corpus.package_of('apps/shop/docs/a.md', ['apps/']) == 'apps/shop'
+
+
 def test_changelog_without_tags_is_quiet(tmp_path, capsys):
     repo(tmp_path, {'CHANGELOG.md': '## [1.0.0] - Unreleased\n'})
     assert corpus.changelog_findings(tmp_path, Config()) == []
@@ -367,3 +526,22 @@ def test_changelog_tag_patterns(tmp_path):
     }}})
     assert len(corpus.changelog_findings(tmp_path, cfg)) == 1
     assert corpus.changelog_findings(tmp_path, Config()) == []
+
+
+# --- rules switched off -------------------------------------------------------
+
+
+def test_list_item_long_off_reports_nothing_for_a_wrapped_item():
+    item = '- start\n' + ''.join('  ' + 'word ' * 20 + '\n' for _ in range(7))
+    assert ids(findings_for(doc(item), Config())) == ['list-item-long']
+    assert findings_for(doc(item), rules(list_item_long='off')) == []
+
+
+def test_wall_of_text_off_ignores_a_doc_with_no_headings():
+    assert ids(findings_for(doc(prose(500)), Config())) == ['wall-of-text']
+    assert findings_for(doc(prose(500)), rules(wall_of_text='off')) == []
+
+
+def test_wall_of_text_off_still_reports_over_fragmented():
+    found = findings_for(doc(sections(10, 42)), rules(wall_of_text='off'))
+    assert ids(found) == ['over-fragmented']

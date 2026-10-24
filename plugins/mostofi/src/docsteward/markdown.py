@@ -15,10 +15,19 @@ PROSE, HEADING, CODE, TABLE, FRONT, BLANK = 'prose', 'heading', 'code', 'table',
 WEIGHT = {PROSE: 1.0, HEADING: 1.0, CODE: 0.4, TABLE: 0.4, FRONT: 0.0, BLANK: 0.0}
 
 FENCE_RE = re.compile(r'^(?P<indent>[ \t]*)(?P<mark>`{3,}|~{3,})(?P<info>.*)$')
-HEADING_RE = re.compile(r'^[ \t]{0,3}(?P<hashes>#{1,6})\s+(?P<title>.*?)\s*#*\s*$')
+# A closing run of `#` is a closer only after whitespace: `## Learning C#` is
+# titled "Learning C#".
+HEADING_RE = re.compile(r'^[ \t]{0,3}(?P<hashes>#{1,6})\s+(?P<title>.*?)(?:\s+#+)?\s*$')
+LINE_BREAK_RE = re.compile(r'\r\n|\r|\n')
 LIST_RE = re.compile(r'^[ \t]*([-*+]|\d+[.)])\s+')
-SKIP_PREFIXES = ('http://', 'https://', 'mailto:', 'tel:', '#', 'data:', '//')
-MD_LINK_RE = re.compile(r'\[[^\]]*\]\(\s*<?([^)>\s]+)>?\s*(?:"[^"]*")?\)')
+# Any URI scheme, in any case -- not a list of the ones seen so far, which let
+# `ftp:`, `ssh:` and `HTTPS:` targets through as files to go and look for. No dot
+# in the scheme, or `README.md:12` would read as one.
+SCHEME_RE = re.compile(r'[A-Za-z][A-Za-z0-9+-]*:')
+INLINE_CODE_RE = re.compile(r'(`+)(?:(?!\1).)+?\1')
+MD_LINK_RE = re.compile(
+    r"""\[[^\]]*\]\(\s*<?((?:[^()>\s]|\([^()\s]*\))+)>?\s*(?:"[^"]*"|'[^']*')?\)"""
+)
 STATUS_LINE_RE = re.compile(r'^\s*\*\*Status(?::\*\*|\*\*:)\s*(?P<value>.*?)\s*$')
 FRONT_STATUS_RE = re.compile(r'^status:\s*(?P<value>.*?)\s*$')
 
@@ -53,13 +62,40 @@ class Doc(NamedTuple):
     status: str | None = None
 
 
+# `str.splitlines` also breaks on U+2028, U+0085 and form feed, which Markdown
+# and every editor's line numbers treat as ordinary characters.
+def split_lines(text: str) -> list[str]:
+    parts = LINE_BREAK_RE.split(text)
+    if parts[-1] == '':
+        parts.pop()
+    return parts
+
+
+# A link target that names no file: a URL of any scheme, a bare anchor, or a
+# protocol-relative `//host`.
+def is_external(target: str) -> bool:
+    return target.startswith(('#', '//')) or bool(SCHEME_RE.match(target))
+
+
+# A backtick fence cannot carry a backtick in its info string, or it is inline
+# code (```a``` b) that happens to start a line.
+def opens_fence(line: str) -> re.Match[str] | None:
+    opener = FENCE_RE.match(line)
+    if opener and opener.group('mark')[0] == '`' and '`' in opener.group('info'):
+        return None
+    return opener
+
+
+# Up to three spaces of indent close a fence, however deep it opened (a list item
+# nests it), and the closer carries no info string.
 def _closes(line: str, mark: str, indent: int) -> bool:
-    stripped = line.strip()
-    char = mark[0]
-    if not stripped.startswith(char * 3):
-        return False
-    run = len(stripped) - len(stripped.lstrip(char))
-    return run >= len(mark) and (len(line) - len(line.lstrip())) <= indent
+    body = line.lstrip()
+    run = len(body) - len(body.lstrip(mark[0]))
+    return (
+        run >= len(mark)
+        and not body[run:].strip()
+        and len(line) - len(body) <= max(indent, 3)
+    )
 
 
 def front_matter_end(lines: list[str]) -> int:
@@ -71,7 +107,7 @@ def front_matter_end(lines: list[str]) -> int:
 
 
 def segment(text: str) -> list[Segment]:
-    lines = text.splitlines()
+    lines = split_lines(text)
     out: list[Segment] = []
     mark = ''
     indent = 0
@@ -93,7 +129,7 @@ def segment(text: str) -> list[Segment]:
             if _closes(line, mark, indent):
                 mark = ''
             continue
-        opener = FENCE_RE.match(line)
+        opener = opens_fence(line)
         if opener:
             mark = opener.group('mark')
             indent = len(opener.group('indent'))
@@ -121,12 +157,13 @@ def fences(segments: list[Segment]) -> list[tuple[int, int, str, int]]:
             continue
         last = seg.lineno
         if start is None:
-            opener = FENCE_RE.match(seg.text)
-            if opener:
-                start = seg.lineno
-                mark = opener.group('mark')
-                indent = len(opener.group('indent'))
-                lang = opener.group('info').strip()
+            # A code segment outside a fence is the line that opens one.
+            opener = opens_fence(seg.text)
+            assert opener is not None
+            start = seg.lineno
+            mark = opener.group('mark')
+            indent = len(opener.group('indent'))
+            lang = opener.group('info').strip()
             continue
         # The opener's own mark closes it, the same test `segment` applies. Any
         # fence-shaped line used to close it, so a ``` inside a ```` block split
@@ -146,12 +183,12 @@ def fences(segments: list[Segment]) -> list[tuple[int, int, str, int]]:
 # points at nothing by design.
 def unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
     mark, indent = '', 0
-    for lineno, line in enumerate(text.splitlines(), start=1):
+    for lineno, line in enumerate(split_lines(text), start=1):
         if mark:
             if _closes(line, mark, indent):
                 mark = ''
             continue
-        opener = FENCE_RE.match(line)
+        opener = opens_fence(line)
         if opener:
             mark, indent = opener.group('mark'), len(opener.group('indent'))
             continue
@@ -192,7 +229,7 @@ def _sections(segments: list[Segment], counter: Counter, last_line: int) -> list
 
 
 def exempt_reason(text: str) -> str | None:
-    lines = text.splitlines()
+    lines = split_lines(text)
     for line in lines[front_matter_end(lines) :]:
         stripped = line.strip()
         if not stripped:
@@ -212,7 +249,7 @@ def exempt_reason(text: str) -> str | None:
 # Front matter wins over a body line: it is the machine-readable spelling, and a
 # doc carrying both has said which one it means.
 def doc_status(text: str) -> str | None:
-    lines = text.splitlines()
+    lines = split_lines(text)
     end = front_matter_end(lines)
     # `end` is the closing fence's 1-based line, 0 when there is no front matter;
     # an unguarded `lines[1:-1]` would read the whole body as front matter.
@@ -229,7 +266,7 @@ def doc_status(text: str) -> str | None:
 
 def analyze(rel: str, text: str, counter: Counter) -> Doc:
     segs = segment(text)
-    lines = len(text.splitlines())
+    lines = len(split_lines(text))
     return Doc(
         rel=rel,
         tokens=_weigh(segs, counter),

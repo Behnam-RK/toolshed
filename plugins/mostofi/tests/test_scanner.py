@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from helpers import commit, git, repo, rules
+from helpers import commit, git, repo, rules, write
 
 from docsteward import cli, scanner
 from docsteward.config import WARN, Config
@@ -103,6 +103,31 @@ def test_custom_code_globs(tmp_path, base):
     assert len(changed(tmp_path, base, cfg)) == 1
 
 
+def test_empty_code_globs_name_no_code(tmp_path, base):
+    commit(tmp_path, {'app.py': 'x = 2\n'})
+    cfg = Config({'rules': {'changed-without-docs': {'severity': 'warn'}},
+                  'corpus': {'code_globs': []}})
+    assert changed(tmp_path, base, cfg) == []
+
+
+def test_empty_doc_globs_name_no_docs(tmp_path, base):
+    commit(tmp_path, {'app.py': 'x = 2\n', 'README.md': '# App, changed\n'})
+    cfg = Config({'rules': {'changed-without-docs': {'severity': 'warn'}},
+                  'corpus': {'doc_globs': []}})
+    assert len(changed(tmp_path, base, cfg)) == 1
+
+
+def test_an_unknown_base_in_a_shallow_clone_is_skipped_with_a_note(tmp_path, base, capsys):
+    commit(tmp_path, {'app.py': 'x = 2\n'})
+    clone = tmp_path.parent / f'{tmp_path.name}-shallow'
+    git(tmp_path, 'clone', '-q', '--depth', '1', f'file://{tmp_path}', str(clone))
+    assert changed(clone, 'no-such-ref') == []
+    assert capsys.readouterr().err == (
+        "mostofi: --base 'no-such-ref' is outside a shallow clone — "
+        'changed-without-docs skipped\n'
+    )
+
+
 # --- through the CLI ----------------------------------------------------------
 
 
@@ -152,3 +177,46 @@ def test_resolve_by_suffix_through_the_cli(tmp_path, estimate, capsys):
     git(tmp_path, 'add', '.docs.toml')
     assert scan_json(tmp_path) == 0
     assert json.loads(capsys.readouterr().out)['findings'] == []
+
+
+# --- citations and references -------------------------------------------------
+
+
+def cite(root, text, rel='README.md'):
+    return scanner.section_citations(root, rel, text, rules(section_citation='warn'))
+
+
+def test_a_protocol_relative_citation_is_not_a_file_reference(tmp_path):
+    assert cite(tmp_path, 'See the "Install" section of `//host/x.md`.\n') == []
+
+
+def test_a_cited_path_that_is_a_directory_has_no_sections(tmp_path):
+    (tmp_path / 'notes.md').mkdir()
+    [finding] = cite(tmp_path, 'See the "Install" section of `notes.md`.\n')
+    assert finding.message == 'cites "Install" in notes.md — no such section'
+
+
+def test_a_citation_of_a_missing_file_says_so(tmp_path):
+    [finding] = cite(tmp_path, 'See the "Install" section of `gone.md`.\n')
+    assert finding.message == 'cites "Install" in gone.md — no such file'
+
+
+def refs(root, rel, text):
+    return scanner.stale_file_refs(root, rel, text, rules(stale_file_ref='warn'))
+
+
+def test_a_root_level_doc_resolves_against_the_repo_root_only(tmp_path):
+    write(tmp_path, {'pyproject.toml': '', 'src/mod.py': ''})
+    assert refs(tmp_path, 'README.md', 'see `src/mod.py`\n') == []
+    [finding] = refs(tmp_path, 'README.md', 'see `src/gone.py`\n')
+    assert finding.message == 'reference to src/gone.py — no such file'
+
+
+def test_a_doc_in_a_project_resolves_from_that_projects_manifest(tmp_path):
+    write(tmp_path, {'svc/pyproject.toml': '', 'svc/src/mod.py': '', 'svc/docs/g.md': ''})
+    assert refs(tmp_path, 'svc/docs/g.md', 'see `src/mod.py`\n') == []
+
+
+def test_a_doc_outside_any_project_ignores_another_projects_manifest(tmp_path):
+    write(tmp_path, {'svc/pyproject.toml': '', 'svc/src/mod.py': '', 'docs/g.md': ''})
+    assert len(refs(tmp_path, 'docs/g.md', 'see `src/mod.py`\n')) == 1

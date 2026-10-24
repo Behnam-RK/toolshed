@@ -9,7 +9,9 @@ from pathlib import Path
 
 from . import __version__, corpus, markdown, scanner
 from .analyzers import findings_for as analyze_code
-from .config import FAIL, RULE_DEFAULTS, WARN, Config, ConfigError, load as load_config
+from .config import (
+    FAIL, RULE_DEFAULTS, WARN, Config, ConfigError, find_config, load as load_config,
+)
 from .corpus import GitUnavailable
 from .findings import Finding
 from .rules import findings_for as markdown_findings_for
@@ -40,9 +42,25 @@ def _collect(walked: corpus.Walk, counter: Counter) -> list[markdown.Doc]:
     return [markdown.analyze(rel, text, counter) for rel, text in walked.files]
 
 
-def _baseline_tokens(root: Path, rel: str, counter: Counter) -> int | None:
-    previous = corpus.baseline(root, rel)
+def _baseline_tokens(root: Path, rel: str, counter: Counter, ref: str | None) -> int | None:
+    previous = corpus.baseline(root, rel, ref)
     return None if previous is None else markdown.analyze(rel, previous, counter).tokens
+
+
+# A scoped run reports on its files but indexes the whole corpus: a block copied
+# from an unchecked doc is still a duplicate. Walked only when the rule is on.
+def _duplicates(
+    root: Path, docs: list[markdown.Doc], config: Config, counter: Counter,
+    scope: corpus.Scope,
+) -> tuple[list[Finding], dict[str, tuple[int, str]]]:
+    if not scope.diff_aware or not any(
+        config.rule('cross-doc-duplicate', d.rel).on for d in docs
+    ):
+        return corpus.duplicate_findings(docs, counter, config)
+    everything = _collect(corpus.walk(root, config.doc_globs, config), counter)
+    found, worst = corpus.duplicate_findings(everything, counter, config)
+    scoped = {d.rel for d in docs}
+    return [f for f in found if f.rel in scoped], worst
 
 
 def _markdown_findings(
@@ -52,12 +70,13 @@ def _markdown_findings(
     counter: Counter,
     scope: corpus.Scope,
     code: list[tuple[str, str]],
+    ref: str | None,
 ) -> list[Finding]:
-    dupes, worst = corpus.duplicate_findings(docs, counter, config)
+    dupes, worst = _duplicates(root, docs, config, counter, scope)
     out: list[Finding] = []
     for doc in docs:
         size, other = worst.get(doc.rel, (0, ''))
-        base = _baseline_tokens(root, doc.rel, counter) if scope.diff_aware else None
+        base = _baseline_tokens(root, doc.rel, counter, ref) if scope.diff_aware else None
         out += markdown_findings_for(doc, config, counter.grace, size, other, base)
     out += dupes
     if not scope.diff_aware:
@@ -66,11 +85,12 @@ def _markdown_findings(
 
 
 def _code_findings(
-    root: Path, config: Config, scope: corpus.Scope, code: list[tuple[str, str]]
+    root: Path, config: Config, scope: corpus.Scope, code: list[tuple[str, str]],
+    ref: str | None,
 ) -> list[Finding]:
     out: list[Finding] = []
     for rel, source in code:
-        base = corpus.baseline(root, rel) if scope.diff_aware else None
+        base = corpus.baseline(root, rel, ref) if scope.diff_aware else None
         out += analyze_code(rel, source, base, config)
     return out
 
@@ -100,7 +120,7 @@ def _scanner_findings(
         if rel in seen:
             continue
         seen.add(rel)
-        out += scanner.todo_markers(rel, text, config)
+        out += scanner.todo_markers(rel, text, config, prose=is_doc)
         out += scanner.section_citations(root, rel, text, config)
         if is_doc:
             out += scanner.open_checkboxes(rel, text, config)
@@ -131,8 +151,11 @@ def _analyze(
     # skipped appeared nowhere at all — neither measured nor accounted for.
     listed = set(walked.exempt)
     exempt = walked.exempt + [e for e in walked_code.exempt if e not in listed]
-    findings = _markdown_findings(root, docs, config, counter, scope, code)
-    findings += _code_findings(root, config, scope, code)
+    # The baseline a scoped run compares against: HEAD unless `--base` says
+    # otherwise, resolved once rather than once per file.
+    ref = corpus.base_rev(root, base_ref) if scope.diff_aware else None
+    findings = _markdown_findings(root, docs, config, counter, scope, code, ref)
+    findings += _code_findings(root, config, scope, code, ref)
     findings += _scanner_findings(root, config, base_ref, walked.files, code)
     findings += corpus.adr_findings(root, config, scope)
     findings += corpus.changelog_findings(root, config, scope)
@@ -207,12 +230,59 @@ def _as_json(
     }, indent=2)
 
 
-def _resolve_scope(root: Path, files: list[Path]) -> corpus.Scope:
-    return corpus.Scope(tuple(p if p.is_absolute() else root / p for p in files))
+# From a subdirectory the config sits above the working directory, and a root
+# without it measures nothing while printing "0 failures". Returns the root and
+# where a relative file argument starts.
+def _locate_root(explicit: Path | None) -> tuple[Path, Path]:
+    if explicit is not None or any(os.environ.get(name) for name in ROOT_ENV):
+        root = explicit.resolve() if explicit else _default_root()
+        return root, root
+    # No answer given: the nearest `.docs.toml` up to the repo's top, else here.
+    here = Path.cwd().resolve()
+    try:
+        top = corpus.git(here, 'rev-parse', '--show-toplevel')
+    except GitUnavailable:
+        return here, here
+    ceiling = Path(top.strip()).resolve() if top and top.strip() else here
+    for candidate in (here, *here.parents):
+        if find_config(candidate) is not None:
+            return candidate, here
+        if candidate == ceiling:
+            break
+    return here, here
+
+
+def _resolve_scope(anchor: Path, files: list[Path]) -> corpus.Scope:
+    return corpus.Scope(tuple(p if p.is_absolute() else anchor / p for p in files))
+
+
+# A file the run cannot measure used to vanish from it without a word, and an
+# empty result reads as a pass. Not an error: a hook hands over staged deletions.
+def _unmeasured(root: Path, scope: corpus.Scope, typed: list[Path]) -> list[str]:
+    names: dict[str, Path] = {}
+    out: list[str] = []
+    for path, arg in zip(scope.files, typed):
+        try:
+            rel = path.resolve().relative_to(root).as_posix()
+        except ValueError:
+            out.append(f'{arg}: outside the root {root} — not measured')
+            continue
+        if path.is_dir():
+            out.append(f'{arg}: is a directory — name the files')
+        elif not path.exists():
+            out.append(f'{arg}: no such file')
+        else:
+            names[rel] = arg
+    listed = corpus.git(root, 'ls-files', '-z', '--', *names) if names else ''
+    tracked = set((listed or '').split('\0'))
+    if listed is not None:
+        out += [f'{arg}: not tracked by git — not measured'
+                for rel, arg in names.items() if rel not in tracked]
+    return out
 
 
 def _run(args, scan: bool) -> int:
-    root = args.root.resolve() if args.root else _default_root()
+    root, anchor = _locate_root(args.root)
     try:
         config = load_config(root, args.config, args.profile)
     except ConfigError as exc:
@@ -221,7 +291,7 @@ def _run(args, scan: bool) -> int:
     if scan:
         config = config.for_scan()
 
-    scope = _resolve_scope(root, args.files)
+    scope = _resolve_scope(anchor, args.files)
     try:
         counter = resolve_counter(require_exact=args.require_exact)
     except ExactCountUnavailable as exc:
@@ -236,6 +306,9 @@ def _run(args, scan: bool) -> int:
         print(f'mostofi: {exc}', file=sys.stderr)
         return 2
     failures = [f for f in findings if f.severity == FAIL]
+    if scope.diff_aware:
+        for problem in _unmeasured(root, scope, args.files):
+            print(f'mostofi: {problem}', file=sys.stderr)
 
     if args.as_json:
         print(_as_json(findings, docs, exempt, counter, config))
@@ -270,6 +343,12 @@ def _add_analysis_args(parser: argparse.ArgumentParser):
     parser.add_argument('--root', type=Path)
     parser.add_argument('--config', type=Path)
     parser.add_argument('--profile')
+    parser.add_argument(
+        '--base', metavar='REF',
+        help='git ref to compare against: with files, the baseline a pre-existing '
+             'violation is judged by (default HEAD, so a staged change is measured '
+             'against the commit it will land on); also what changed-without-docs diffs',
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -286,11 +365,9 @@ def build_parser() -> argparse.ArgumentParser:
     check = sub.add_parser('check', help='blocking gate; exit 1 on failure')
     _add_analysis_args(check)
     check.add_argument('--require-exact', action='store_true')
-    check.set_defaults(base=None)
 
     scan = sub.add_parser('scan', help='advisory report; no finding blocks')
     _add_analysis_args(scan)
-    scan.add_argument('--base', help='git ref to compare against for changed-without-docs')
     scan.set_defaults(require_exact=False)
 
     init = sub.add_parser('init', help='scaffold config and convention docs')
@@ -302,7 +379,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument('--no-guide', action='store_true')
     init.add_argument('--no-adr', action='store_true',
                       help='keep an existing decision log; write no ADR templates')
-    init.add_argument('--adr-dir', default=DEFAULT_ADR_DIR)
+    init.add_argument('--adr-dir', help=f"default: the kept config's, else {DEFAULT_ADR_DIR}")
     init.add_argument('--exclude', action='append', metavar='GLOB')
     init.add_argument('--doc-gate', action=argparse.BooleanOptionalAction)
     init.add_argument('--routing-doc', metavar='PATH')

@@ -69,9 +69,10 @@ print(prompt)
 PY
 
 # macOS ships 3.9 as /usr/bin/python3 (no tomllib); share the shim's discovery.
+# shellcheck source=find-python.sh source-path=SCRIPTDIR
 . "$(dirname "${BASH_SOURCE[0]}")/find-python.sh"
 fields=''
-find_python && fields=$("$py" -c "$gate_reader" "$config" <<<"$payload" 2>/dev/null)
+find_python && fields=$("$py" -P -c "$gate_reader" "$config" <<<"$payload" 2>/dev/null)
 
 if [ -z "$fields" ]; then
   echo "[doc-gate] $python_missing — hook skipped." >&2
@@ -90,15 +91,17 @@ fi
 
 [ "$enabled" = 'yes' ] || exit 0
 [ -n "$prompt" ] || exit 0
-[ -n "$trigger" ] || trigger='^[[:space:]]*(please[,:]?[[:space:]]+|can you[[:space:]]+|could you[[:space:]]+|let'\''s[[:space:]]+|go[[:space:]]+)?(implement|build|refactor|enhanc|migrat(e|ion)|(add|create) (a |an |new )|new (model|resource|service|endpoint|mutation|field|hook|webhook))'
+curly=$(printf '\342\200\231')
+[ -n "$trigger" ] || trigger='^[[:space:]]*(please[,:]?[[:space:]]+|can you[[:space:]]+|could you[[:space:]]+|let('\''|'"$curly"')s[[:space:]]+|go[[:space:]]+)?(implement|build|refactor|enhanc|migrat(e|ion)|(add|create) (a |an |new )|new (model|resource|service|endpoint|mutation|field|hook|webhook))'
 
+# The default takes a curly apostrophe too: phones and editors type one.
 # Anchor the imperative to the start of a line so "how do I implement X?" and
 # "should I refactor Y?" do not trip it -- only directives do.
 
 # A here-string, not `printf | grep`: `grep -q` closes the pipe on its first
 # match, printf dies of SIGPIPE, and `pipefail` makes that the pipeline's
 # status -- so a prompt over the 64K pipe buffer read as a miss.
-grep -qiE "$trigger" <<<"$prompt" || exit 0
+grep -qiE -e "$trigger" <<<"$prompt" || exit 0
 
 # Only where conventions exist, never naming a missing file. Unconfigured,
 # AGENTS.md or CLAUDE.md counts, the first present named.

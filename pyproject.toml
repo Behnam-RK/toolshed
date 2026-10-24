@@ -16,7 +16,7 @@ dependencies = []
 exact = ["tiktoken>=0.9,<1"]
 
 [dependency-groups]
-test = ["pytest>=8"]
+test = ["pytest>=8", "coverage>=7"]
 
 [project.scripts]
 mostofi = "docsteward.cli:main"
@@ -30,3 +30,11 @@ packages = ["plugins/mostofi/src/docsteward"]
 [tool.pytest.ini_options]
 testpaths = ["plugins/mostofi/tests"]
 pythonpath = ["plugins/mostofi/src"]
+
+[tool.coverage.run]
+branch = true
+source = ["plugins/mostofi/src/docsteward"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true

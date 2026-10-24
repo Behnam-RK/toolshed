@@ -10,14 +10,14 @@ HOOK = Path(__file__).resolve().parents[1] / 'scripts' / 'doc-gate.sh'
 DIRECTIVE = 'implement the export endpoint'
 
 
-def _run(root, prompt=DIRECTIVE, option=None, payload=None):
+def _run(root, prompt=DIRECTIVE, option=None, payload=None, cwd=None):
     env = {k: v for k, v in os.environ.items() if k != 'CLAUDE_PLUGIN_OPTION_DOC_GATE'}
     env['CLAUDE_PROJECT_DIR'] = str(root)
     if option is not None:
         env['CLAUDE_PLUGIN_OPTION_DOC_GATE'] = option
     data = payload if payload is not None else json.dumps({'prompt': prompt})
     done = subprocess.run(['bash', str(HOOK)], input=data, env=env,
-                          capture_output=True, text=True, timeout=30)
+                          capture_output=True, text=True, timeout=30, cwd=cwd)
     assert done.returncode == 0, done.stderr
     return done.stdout.strip()
 
@@ -127,3 +127,20 @@ def test_payload_past_the_pipe_buffer(adopted):
 @pytest.mark.parametrize('payload', ['', 'not json', '[]'])
 def test_bad_payload_is_silent(adopted, payload):
     assert _run(adopted, payload=payload) == ''
+
+
+@pytest.mark.parametrize('prompt', ["let's implement it", 'let\u2019s implement it'])
+def test_default_trigger_takes_either_apostrophe(adopted, prompt):
+    assert 'read AGENTS.md' in _run(adopted, prompt)
+
+
+def test_a_trigger_starting_with_a_dash_is_a_pattern_not_an_option(adopted):
+    (adopted / '.docs.toml').write_text('[doc-gate]\ntrigger = "-ship"\n', encoding='utf-8')
+    assert 'read AGENTS.md' in _run(adopted, '-ship it')
+
+
+def test_repo_files_cannot_shadow_the_hook_interpreter(adopted):
+    # The hook runs with the repo as cwd; `python -c` would import its json.py.
+    (adopted / 'json.py').write_text('raise SystemExit(7)\n', encoding='utf-8')
+    (adopted / 'tomllib.py').write_text('raise SystemExit(7)\n', encoding='utf-8')
+    assert 'read AGENTS.md' in _run(adopted, cwd=adopted)

@@ -47,17 +47,25 @@ turns it off.
 ## CLI
 
 ```
-mostofi check [files…]       # blocking gate, exit 1 on failure (strict with no files)
-mostofi scan [--base REF]    # advisory report, exit 0 (2 if the config is broken)
-mostofi init [--check]       # scaffold .docs.toml + doc guide + docs/adr/
-mostofi --explain RULE       # one rule's reasoning and knobs
+mostofi check [files…] [--base REF]  # blocking gate, exit 1 on failure (strict with no files)
+mostofi scan [files…] [--base REF]   # advisory report, exit 0 (2 if the config is broken)
+mostofi init [--check]               # scaffold .docs.toml + doc guide + docs/adr/
+mostofi --explain RULE               # one rule's reasoning and knobs
 ```
 
-`init` flags: `--profile`, `--lang a,b`, `--exclude GLOB` (repeatable),
-`--adr-dir DIR` (moves the ADR caps, collision rule and templates),
+`check` and `scan` also take `--root DIR`, `--config PATH`, `--profile NAME`,
+`--json` and `--verbose`; `check` adds `--require-exact` (fail rather than
+estimate when tiktoken is missing). `--root` defaults to `$DOCS_ROOT`, then
+`$DOC_BUDGET_ROOT`, then the working directory, for `init` as well.
+
+`init` flags: `--root`, `--profile`, `--lang a,b`, `--exclude GLOB` (repeatable),
+`--adr-dir DIR` (moves the ADR caps, collision rule and templates; no
+wildcards; default: the one a kept `.docs.toml` names, else `docs/adr`),
 `--no-guide`, `--no-adr` (keep an existing log), `--no-docs` (both),
 `--doc-gate`/`--no-doc-gate`, `--routing-doc PATH`, `--force`. `--check`
-compares the landed templates with the shipped ones.
+compares the landed templates with the shipped ones; give it the
+`--no-guide`/`--no-adr`/`--no-docs` flags `init` ran with, and it demands only
+the files those leave. Bad flags exit 2.
 
 ## Pin it in another repo
 

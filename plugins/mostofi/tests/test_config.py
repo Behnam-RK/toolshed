@@ -446,3 +446,97 @@ def test_glob_match(rel, pattern, expected):
 ])
 def test_decorator_matches(dotted, pattern, expected):
     assert decorator_matches(dotted, pattern) is expected
+
+
+# --- stricter validation ------------------------------------------------------
+
+
+@pytest.mark.parametrize('section, key', [
+    ('defaults', 'sofft'), ('exclude', 'path'), ('python', 'enabeld'),
+    ('comments', 'prefix'), ('corpus', 'doc_glob'),
+])
+def test_an_unknown_key_in_a_section_is_named(section, key):
+    with pytest.raises(ConfigError, match=rf'\[{section}\]: unknown key\(s\) {key}'):
+        Config({section: {key: 1}})
+
+
+@pytest.mark.parametrize('data', [
+    {'defaults': {'soft': -1}},
+    {'defaults': {'hard': -5}},
+    {'overrides': [{'pattern': 'a/**', 'soft': -1}]},
+    {'python': {'docstring_cap': -1}},
+    {'python': {'module_docstring_cap': -2}},
+    {'rules': {'prose-line-long': {'max_chars': -1}}},
+])
+def test_a_negative_cap_is_rejected(data):
+    with pytest.raises(ConfigError, match='negative'):
+        Config(data)
+
+
+@pytest.mark.parametrize('data', [
+    {'defaults': {'soft': 2000, 'hard': 1000}},
+    {'defaults': {'soft': 1500}},
+    {'overrides': [{'pattern': 'a/**', 'soft': 50, 'hard': 10}]},
+])
+def test_a_soft_cap_above_the_hard_cap_is_rejected(data):
+    with pytest.raises(ConfigError, match='soft cap .* above'):
+        Config(data)
+
+
+@pytest.mark.parametrize('value', [1.5, 'x', True])
+def test_a_rule_knob_with_a_whole_number_default_must_be_one(value):
+    with pytest.raises(ConfigError, match='max_chars must be int'):
+        Config({'rules': {'prose-line-long': {'max_chars': value}}})
+
+
+def test_a_config_that_is_not_utf8_is_a_config_error(tmp_path):
+    (tmp_path / '.docs.toml').write_bytes(b'profile = "default"\n# \xff\xfe\n')
+    with pytest.raises(ConfigError, match='not valid UTF-8'):
+        load(tmp_path)
+
+
+def test_the_shipped_defaults_pass_their_own_validation():
+    assert Config({'defaults': {'soft': 1000, 'hard': 1400}}).soft == 1000
+    assert Config({'defaults': {'soft': 0, 'hard': 0}}).hard == 0
+
+
+def test_a_boolean_is_not_a_whole_number_for_a_cap():
+    with pytest.raises(ConfigError, match=r'\[python\]: docstring_cap must be a whole number'):
+        Config({'python': {'docstring_cap': True}})
+
+
+def test_a_float_knob_takes_any_number_and_nothing_else():
+    cfg = Config({'rules': {'doc-code-ratio': {'ratio': 1}}})
+    assert cfg.rule('doc-code-ratio').opts['ratio'] == 1
+    with pytest.raises(ConfigError, match=r"ratio must be float, got 'x'"):
+        Config({'rules': {'doc-code-ratio': {'ratio': 'x'}}})
+    with pytest.raises(ConfigError, match='ratio must not be negative'):
+        Config({'rules': {'doc-code-ratio': {'ratio': -0.5}}})
+
+
+def test_a_table_knob_must_hold_strings_only():
+    with pytest.raises(ConfigError, match=r'tag_patterns must be a table of strings'):
+        Config({'rules': {'changelog-unreleased-tagged': {'tag_patterns': {'a': 1}}}})
+
+
+def test_a_tag_template_with_unbalanced_braces_is_rejected():
+    with pytest.raises(ConfigError, match=r"default_tag: 'v\{version' must be a tag template"):
+        Config({'rules': {'changelog-unreleased-tagged': {'default_tag': 'v{version'}}})
+
+
+def test_a_tag_pattern_template_is_checked_under_its_glob():
+    with pytest.raises(ConfigError, match=r"pkg/\*\*: 'pkg-\{name\}' must be a tag template"):
+        Config({'rules': {'changelog-unreleased-tagged': {
+            'tag_patterns': {'pkg/**': 'pkg-{name}'},
+        }}})
+
+
+@pytest.mark.parametrize('status', ['Accepted', ['ok', 1], 3])
+def test_a_status_override_needs_a_list_of_strings(status):
+    with pytest.raises(ConfigError, match=r'docs/\*\*: status must be a list of strings'):
+        Config({'overrides': [{'pattern': 'docs/**', 'status': status, 'soft': 1}]})
+
+
+def test_an_empty_status_list_could_never_match():
+    with pytest.raises(ConfigError, match=r'docs/\*\*: status must not be empty'):
+        Config({'overrides': [{'pattern': 'docs/**', 'status': [], 'soft': 1}]})
