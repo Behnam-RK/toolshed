@@ -49,7 +49,7 @@ Anything beyond these fields explains the code, not the choice.
 8. **Confirm, then write** — show the full draft; write the file (fallback
    `<dir>/NNNN-decision-title.md`) only after explicit approval. Declined →
    discard, leave no file.
-9. **Index** — only if the repo has one: add its row in the same commit.
+9. **Index** — only if the repo has one: add its row in the same change.
 
 ```markdown
 | ADR | Title | Status | File |
@@ -64,13 +64,14 @@ alternatives; state consequences honestly; under a 2-minute read; present tense.
 
 Don't: record trivia (naming, formatting); write essays (a **Why:** over ~10
 lines explains code, not choice); omit alternatives; backfill an old decision
-without saying in **Why:** when it was really made (no Date field — it reads as
-decided on its commit date); let superseded entries lack a replacement link.
+without saying in **Why:** when it was really made (the fallback has no Date
+field, so it reads as decided on its commit date); let superseded entries lack a replacement link.
 
 ## Lifecycle
 
 `Proposed → Adopted → [Deprecated | Superseded by <ADR ref>]`. Superseded links
-its replacement and the replacement links back. Never edit an accepted
+its replacement and the replacement links back, both in **Status:** text
+(`Superseded by ADR-0009`; `Adopted; supersedes ADR-0003`). Never edit an accepted
 decision's substance — supersede it.
 
 ## With other agents

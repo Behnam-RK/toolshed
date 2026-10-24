@@ -6,8 +6,10 @@ from the size numbers below; do not read the diff to decide. Explicit
 
 ## Measure
 
-A diff target, code or prose: `git diff <base> --shortstat` and `--name-only`,
-counting uncommitted changes. Lines = insertions + deletions. Named files or
+A diff target, code or prose: `git diff <base> --shortstat` and `--name-only`
+(tracked changes, committed or not), plus untracked new files from
+`git ls-files -o --exclude-standard` (files; lines by `wc -l`). Lines =
+insertions + deletions + untracked lines. Named files or
 documents: `wc -l` over them.
 
 ## Tier
@@ -24,8 +26,9 @@ The higher tier of lines and files wins; a risky path bumps one tier.
 Inside a range, take the low end for repetitive or single-module changes and
 the high end for entangled or cross-module ones.
 
-**Risky**: auth, shell or exec, SQL, secrets, input parsing, migrations,
-CI or deploy config.
+**Risky**: a changed path (from `--name-only`) that names auth, shell or
+exec, SQL, secrets, input parsing, migrations, or CI or deploy config. Judge
+by path only, never by content.
 
 ## Model
 

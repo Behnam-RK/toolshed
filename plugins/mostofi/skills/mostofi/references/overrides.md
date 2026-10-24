@@ -6,5 +6,5 @@
   comments stayed. See `extraction.md`.
 - **Existing ADRs folded.** The same pass merged small, *genuinely related*
   existing entries into shared files as subsections (each keeping its own
-  Status/Date/anchor). That is disk organization of an existing log; new
+  Status/Date/anchor, which that repo's convention had). That is disk organization of an existing log; new
   decisions are still one per ADR. Relatedness is the bar, not size.

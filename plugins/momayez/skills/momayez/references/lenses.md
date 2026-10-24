@@ -68,8 +68,10 @@ Do the docs still match the changed code? READMEs, docstrings, comments,
 changelogs, ADRs and `--help` text that describe a renamed, removed or changed
 symbol, flag or config key; a new public surface or a settled decision with no
 record. If `command -v mostofi` succeeds, run
-`mostofi scan --base <base> --json` and verify each lead against the code
-before reporting it. Not: style, length, or docs for unchanged code.
+`mostofi scan --json`: its leads are repo-wide (`--base` only feeds the
+`changed-without-docs` rule, off by default), so keep those on files or symbols
+the target touches, and verify each against the code before reporting it.
+Not: style, length, or docs for unchanged code.
 Major: a reader acting on the doc would fail. Minor: stale or missing prose that misleads nobody.
 
 ## accuracy

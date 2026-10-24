@@ -2,7 +2,7 @@
 
 Tools come from the official Linear plugin (`linear@claude-plugins-official`).
 Without them, dabir drafts locally and says publishing needs that plugin. It
-skips steps 6 and 7.
+skips step 6 and the Linear writes in step 7.
 
 ## Read
 
@@ -39,7 +39,8 @@ the doc's language.
   previous version: one line pointing to vN and, when it changed, the row in
   Appendix A. Never resolve or delete threads.
 - **ADR links:** `save_document` with the id of the document just published
-  and a `patch` that adds the links to Appendix B. This is the one edit a
+  and a `patch` that adds the links to Appendix B, or appends `## Appendix B` with
+  them when the doc has none (empty sections are left out). This is the one edit a
   published version gets, and only for the version just published.
 - **Issues:** `save_issue` with the project's team and `project`; title from
   the `Missing:` item or the Open decision; assignee only when the doc names

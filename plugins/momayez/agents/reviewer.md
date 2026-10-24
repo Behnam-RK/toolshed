@@ -24,9 +24,9 @@ packages. If asked to fix something, report it as a finding instead.
 - **Intent brief**: goal, requirements, constraints, out-of-scope. It is the
   yardstick. Judge against it, not against your taste.
 - **Lens**: one focus with its brief. Stay in it; another reviewer owns the
-  other lenses.
-- **Target**: a diff, files, or a document, and in later rounds the fix diff
-  plus the parts no finding has cited yet.
+  other lenses. Given findings to verify instead, see Verify mode.
+- **Target**: a diff, files, or a document; in rounds 2+ except the last, the
+  fix diff plus the files no finding has cited yet.
 - **Ledger** (rounds 2+): earlier findings with their state: `fixed`,
   `wont-fix(reason)`, `disputed`. Settled findings are settled.
 
@@ -82,3 +82,13 @@ Verdict: clean | findings
 ```
 
 A clean report is a valid result. Do not pad it.
+
+## Verify mode
+
+Given findings to confirm or refute, you are not lens-bound. Read each cited
+line and try to refute the claim. Answer one line per finding, no other output:
+
+```
+<id> | confirmed | <one line of evidence: quoted line, test or rule>
+<id> | refuted | <one line of evidence>
+```

@@ -53,10 +53,13 @@ From the user's plugin settings; a blank or unsubstituted value takes the defaul
    subclass contracts, side effects, non-trivial module headers; `_private`
    only when non-obvious). Comment blocks over **3 lines**: reread; over
    **10** (docstring over ~3) carrying real knowledge: *relocate*, don't truncate.
-1. **Scope.** Diff against base (`git diff --name-only <base>...HEAD`); note
-   added/renamed/removed symbols and config. Run
+1. **Scope.** Changed files: `git diff --name-only <mb>` (committed and
+   uncommitted work) plus `git ls-files -o --exclude-standard` (untracked);
+   `<mb>` is `git merge-base HEAD <base>`, `<base>` being `--base`, else the
+   default branch. Note added/renamed/removed symbols and config. Run
    `mostofi scan [--base <ref>] [--json] [--root <path>]` — advisory leads,
-   exit 0 (2: broken config). `mostofi check` is the blocking gate on the same `.docs.toml`;
+   repo-wide (`--base` only feeds `changed-without-docs`, off by default), so
+   keep those on changed files; exit 0 (2: broken config). `mostofi check` is the blocking gate on the same `.docs.toml`;
    `mostofi --explain <rule>` explains one rule.
 2. **Review** each surface: does it match the code, is anything new
    unrecorded, stale or redundant? Checklist: `references/review-checklist.md`.

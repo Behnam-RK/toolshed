@@ -27,7 +27,7 @@ plans and specs work too.
   docs, accuracy, clarity. 1–3 (at most `max_reviewers`, default 2) are
   auto-picked and announced; `--lenses` overrides. `docs` uses `mostofi scan` when the mostofi plugin is enabled.
 - **Findings** carry `file:line`, quoted evidence, severity and confidence;
-  below 80 is dropped. Critical, major and minor get fixed; nits are offered
+  below 80 is dropped unless critical. Critical, major and minor get fixed; nits are offered
   at the end. `--verify` adds a verifier pass before fixes.
 - **Gate**: for code, the project's check/test command is run as a baseline
   and after every round. Red blocks a clean stop.
@@ -37,8 +37,8 @@ plans and specs work too.
 ## Smart
 
 `--smart` spends review effort in proportion to the change. The editor sizes
-the target from `git diff <base> --shortstat` (lines, files) without reading the diff,
-then picks reviewers and rounds from a four-tier table; a risky path (auth,
+the target from `git diff <base> --shortstat` (lines, files) plus untracked files, without reading the diff,
+then picks reviewers and rounds from a four-tier table; a risky path (judged by path, not content: auth,
 shell, SQL, secrets, parsing, migrations, CI) bumps one tier. A small, mechanical
 change (rename, formatting, version bump) reviews on `sonnet`, never `haiku`.
 Explicit flags win per setting; tiers live in

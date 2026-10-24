@@ -53,7 +53,7 @@ Each needs its own yes:
   pointing to vN. Threads are never resolved.
 - **Issues:** one per `Missing:` item or Open decision, picked from a list.
 - **ADR links:** after mostofi records ADRs, one edit to the version just
-  published adds their links to Appendix B. It is the only edit a published
+  published adds their links to Appendix B, creating it if absent. It is the only edit a published
   version gets.
 
 ## Hand-offs

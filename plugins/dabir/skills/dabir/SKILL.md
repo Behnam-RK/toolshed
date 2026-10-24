@@ -14,7 +14,7 @@ stakeholders, detail in appendices for engineers. Format:
 Arguments: `$ARGUMENTS`
 
 Without Linear tools: say so once, take the project, mode, doc version and
-sources from the user, work locally, and skip steps 6 and 7.
+sources from the user, work locally, and skip step 6 and the Linear writes in step 7.
 
 ## Steps
 
@@ -46,7 +46,7 @@ sources from the user, work locally, and skip steps 6 and 7.
    - Revise: reply on each previous-version thread with the vN link.
    - In a repo with an ADR log, with mostofi enabled: record hard-to-reverse
      Decided D#s via `/mostofi adr`; then, on a second yes, add each ADR link
-     to Appendix B of the published vN (linear.md).
+     to Appendix B of the published vN, appending `## Appendix B` if absent (linear.md).
    - Issues for each `Missing:` item and each Open decision: list them, let
      the user pick (multiSelect), create the picked ones.
 

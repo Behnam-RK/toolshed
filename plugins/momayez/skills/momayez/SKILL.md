@@ -9,8 +9,8 @@ argument-hint: "[target] [--lenses a,b] [--model m] [--max-rounds n] [--max-revi
 You are the **editor**: you own every change and the ledger. Reviewers are
 `momayez:reviewer` subagents: read-only, fresh each round, and they return
 findings in the format their definition fixes. Rounds run without stopping for
-the user; the user hears from you at the announcement, if no gate is found,
-and at the end.
+the user, who hears from you at the announcement, if no gate is found, and at
+the end.
 
 Arguments: `$ARGUMENTS`
 
@@ -39,15 +39,15 @@ Arguments: `$ARGUMENTS`
 7. **Parallelism.** `--max-parallel`, else `${user_config.max_parallel}` (2 if
    blank or unsubstituted). It caps reviewers in flight only.
 8. **Gate** (code only). Find it per [references/gate.md](references/gate.md).
-   Record the baseline by exit status, not by grepping output; a red baseline is
-   reported and excluded from the stop check, not fixed silently.
+   Record the baseline per gate.md; a red one is reported and excluded from
+   the stop check, not fixed silently. Prose: no gate, `n/a`.
 9. **Announce** in one block, then start round 1 without waiting:
 
 ```
 Momayez: <target>
 Smart:   <tier> (<n> lines, <f> files, <risky|plain>) | off
 Intent:  <goal> | reqs: … | constraints: … | out: …
-Lenses:  <a, b> on <model>   Cap: <n>   Parallel: <n>   Gate: <command> (<green|red|none>)
+Lenses:  <a, b> on <model>   Cap: <n>   Parallel: <n>   Gate: <command> (<green|red|none>) | n/a
 ```
 
 ## A round
@@ -57,24 +57,25 @@ Lenses:  <a, b> on <model>   Cap: <n>   Parallel: <n>   Gate: <command> (<green|
    Prompt each with the intent brief, its lens brief from lenses.md, the
    target, and from round 2 the ledger. Scope:
    - Round 1 and the capped round: the full target.
-   - Other rounds: the full target, but direct attention to this round's fix
-     diff (regressions), findings still open, and files no finding has cited.
+   - Other rounds: the last fix diff (regressions) and files no finding has
+     cited.
 2. **Filter.** Drop findings below confidence 80 unless critical. Merge
    duplicates across lenses. A finding matching a ledger entry keeps that id;
    a `wont-fix` re-raised without new evidence is dropped. New findings get
    the next ledger id (`F1`, `F2`, …).
 3. **Verify** (only with `--verify`): one more reviewer spawn, same model,
-   given the surviving findings and told to confirm or refute each against the
-   code. Drop refuted ones.
+   given the surviving findings by ledger id, to answer each `confirmed` or
+   `refuted` with one line of evidence (reviewer.md, Verify mode). Drop
+   refuted ones.
 4. **Decide each finding yourself.** Open the cited line. Real and ≥minor: fix
    it, smallest change, with a test where the project has a test harness and
    the defect is testable. Wrong: mark `wont-fix` with the evidence (the line,
    test or rule that refutes it). Real but a product choice the brief doesn't
    settle: mark `disputed` for the user. Nits: record, don't fix.
-5. **Gate.** Re-run it. Red from this round's fixes: fix or revert them before
-   the round ends.
+5. **Gate.** Re-run it. Red beyond the baseline's failures: fix or revert this round's
+   fixes first.
 6. **Report the round** in one line:
-   `Round n: <k> findings (c/M/m/nit) · fixed <x> · wont-fix <y> · disputed <z> · gate <green|red> · <continuing|stopping: reason>`
+   `Round n: <k> findings (c/M/m/nit) · fixed <x> · wont-fix <y> · disputed <z> · gate <green|red|n/a> · <continuing|stopping: reason>`
 
 ## Ledger
 
@@ -90,7 +91,8 @@ After each round, stop at the first that holds:
 
 - **Clean**: no new critical or major findings this round, gate not red.
 - **Cap**: this was round `max_rounds`.
-- **Stall**: the open set is the same as last round's.
+- **Stall**: nothing fixed and nothing new: every surviving finding is a
+  ledger entry.
 
 Minor findings are fixed but don't keep the loop alive.
 
@@ -99,7 +101,7 @@ Minor findings are fixed but don't keep the loop alive.
 ```
 ## Momayez — <target>
 Rounds:    <n> on <model>, lenses <a, b> — stopped: <clean|cap|stall>
-Gate:      <command> — <green|red> (baseline <green|red>)
+Gate:      <command> — <green|red> (baseline <green|red>) | n/a
 Fixed:     F1 <severity> <path:line> — <claim>
 Won't fix: F4 <path:line> — <claim> — <evidence>
 Disputed:  F6 <path:line> — <claim> — <both readings>
@@ -107,8 +109,7 @@ Uncited:   <target files no finding cited, or none>
 Nits:      <count>
 ```
 
-Omit empty lines except `Gate` and `Uncited`; an uncited file was not
-examined, not found clean. Then:
+Omit empty lines except `Gate` and `Uncited` (not examined, not found clean). Then:
 
 1. **Disputed** findings: one question each, with both readings.
 2. **Nits**: `AskUserQuestion`, multiSelect, up to four nits per question (with
