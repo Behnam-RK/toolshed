@@ -362,12 +362,14 @@ def adr_findings(root: Path, config: Config, scope: Scope = WHOLE_REPO) -> list[
         return wanted is None or any(name in wanted for name in names)
 
     adr_glob = rule.opts['adr_glob']
+    # A slug-named log globs `*.md`, which also takes the index and the template.
+    not_adrs = {rule.opts['index'], posixpath.join(posixpath.dirname(rule.opts['index']), 'template.md')}
     # Git pre-selects with its own pathspec dialect, where `*` crosses a `/`; the
     # engine's matcher then decides, so a pattern means here what it means in
     # `[[overrides]]` and `[exclude]`.
     adrs = sorted(
         rel for rel in (p.relative_to(root).as_posix() for p in tracked(root, [adr_glob]))
-        if glob_match(rel, adr_glob) and _in_policy(config, rel)
+        if rel not in not_adrs and glob_match(rel, adr_glob) and _in_policy(config, rel)
     )
     out: list[Finding] = []
 

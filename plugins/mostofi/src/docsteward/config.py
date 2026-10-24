@@ -111,7 +111,9 @@ RULE_DEFAULTS: dict[str, dict[str, Any]] = {
         'help': (
             'Two ADRs holding one number is two pull requests that each took the next '
             'free one. Reports every file sharing a number, and an index row that '
-            'links a missing file or an ADR the index omits (index = "" skips that).'
+            'links a missing file or an ADR the index omits (index = "" skips that). '
+            'A repo whose ADRs are named by slug sets adr_glob to match them, e.g. '
+            '"docs/adr/*.md"; the index and template.md are never counted as ADRs.'
         ),
         'adr_glob': 'docs/adr/[0-9][0-9][0-9][0-9]-*.md',
         'index': 'docs/adr/README.md',

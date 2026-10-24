@@ -88,5 +88,5 @@ reverse*, not *important*; unsure → ask.
 - Never invent rationale from a diff alone: draft what you can verify, ask
   the author for the rest.
 
-Format, numbering, index, lifecycle: `references/adr.md` (read before
+Repo convention first; format, naming, index, lifecycle: `references/adr.md` (read before
 drafting or editing any ADR).

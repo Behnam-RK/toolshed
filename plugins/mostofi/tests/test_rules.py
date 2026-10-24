@@ -330,6 +330,19 @@ def test_adr_empty_index_skips_index_checks(tmp_path):
     assert [f.message.split(' is ')[0] for f in found] == ['ADR number 0001']
 
 
+def test_slug_named_adrs_need_a_row_but_the_index_and_template_do_not(tmp_path):
+    repo(tmp_path, {
+        'docs/adr/README.md': '[stripe](use-stripe.md)\n',
+        'docs/adr/template.md': '# T\n',
+        'docs/adr/use-stripe.md': '# a\n',
+        'docs/adr/use-kafka.md': '# b\n',
+    })
+    cfg = Config({'rules': {'adr-number-collision': {'adr_glob': 'docs/adr/*.md'}}})
+    [finding] = corpus.adr_findings(tmp_path, cfg)
+    assert finding.rel == 'docs/adr/use-kafka.md'
+    assert 'no row' in finding.message
+
+
 def test_changelog_unreleased_but_tagged(tmp_path):
     repo(tmp_path, {'CHANGELOG.md': '# Changelog\n\n## [1.0.0] - Unreleased\n\n## [0.9.0] - Unreleased\n'})
     git(tmp_path, 'tag', 'v1.0.0')

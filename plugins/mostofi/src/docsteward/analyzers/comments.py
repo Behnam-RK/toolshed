@@ -8,8 +8,20 @@ from ..findings import Finding
 from .blocks import comment_block_findings
 
 
-HEREDOC_RE = re.compile(r'(?<!<)<<(?!<)-?\s*[\'"]?([A-Za-z_][A-Za-z0-9_]*)[\'"]?')
 BLOCK_OPEN, BLOCK_CLOSE = '/*', '*/'
+
+# One left-to-right scan: the first construct claims its text, so a quote, an
+# arithmetic expression or a trailing comment hides a later `<<`. The heredoc
+# alternative owns a quoted tag (`<<'EOF'`); `<<<` is a here-string.
+SHELL_TOKEN_RE = re.compile(
+    r"""
+    "[^"]*" | '[^']*'
+    | \$?\(\((?:[^()]|\([^()]*\))*\)\)
+    | (?<!<)<<(?!<)-?\s*(?P<quote>['"]?)(?P<tag>[A-Za-z_][A-Za-z0-9_]*)(?P=quote)
+    | (?P<comment>\s\#)
+    """,
+    re.VERBOSE,
+)
 
 
 def _heredoc_tag(line: str, prefix: str) -> str | None:
@@ -17,16 +29,12 @@ def _heredoc_tag(line: str, prefix: str) -> str | None:
     # would otherwise read as a wall of own-line comments.
     if prefix != '#':
         return None
-    match = HEREDOC_RE.search(line)
-    return match.group(1) if match else None
-
-
-# A quoted span is kept whole so a ` #` inside it is not taken for a comment.
-TRAILING_COMMENT_RE = re.compile(r'''("[^"]*"|'[^']*')|\s#.*''')
-
-
-def _without_trailing_comment(line: str) -> str:
-    return TRAILING_COMMENT_RE.sub(lambda m: m.group(1) or '', line)
+    for match in SHELL_TOKEN_RE.finditer(line):
+        if match.group('comment'):
+            return None
+        if match.group('tag'):
+            return match.group('tag')
+    return None
 
 
 def comment_runs(source: str, prefix: str, cap: int) -> list[tuple[int, int]]:
@@ -34,7 +42,8 @@ def comment_runs(source: str, prefix: str, cap: int) -> list[tuple[int, int]]:
     start = length = previous = 0
     heredoc: str | None = None
     in_block = False
-    for lineno, raw in enumerate(source.splitlines(), start=1):
+    lines = source.splitlines()
+    for lineno, raw in enumerate(lines, start=1):
         stripped = raw.strip()
         if heredoc is not None:
             if stripped == heredoc:
@@ -48,10 +57,10 @@ def comment_runs(source: str, prefix: str, cap: int) -> list[tuple[int, int]]:
             in_block = BLOCK_CLOSE not in stripped[len(BLOCK_OPEN) :]
             continue
         # A comment that mentions `<<EOF`, own-line or trailing, opens nothing;
-        # reading it as a heredoc hid every later run. `<<<` is a here-string.
-        code = _without_trailing_comment(raw)
-        tag = None if stripped.startswith(prefix) else _heredoc_tag(code, prefix)
-        if tag is not None:
+        # reading it as a heredoc hid every later run. A tag with no terminator
+        # line after it opens nothing either, or it would hide the whole file.
+        tag = None if stripped.startswith(prefix) else _heredoc_tag(raw, prefix)
+        if tag is not None and any(rest.strip() == tag for rest in lines[lineno:]):
             heredoc = tag
             continue
         # A shebang is only a shebang on line 1. Excluding it everywhere let a

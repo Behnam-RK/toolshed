@@ -250,3 +250,27 @@ def test_tab_separated_trailing_comment_does_not_open_a_heredoc():
 def test_quoted_hash_before_a_heredoc_still_opens_it():
     source = "sed -e 's/ #.*//' <<'EOF'\n" + '# body\n' * 6 + 'EOF\n'
     assert comments.comment_runs(source, '#', 3) == []
+
+
+def test_heredoc_operator_inside_a_quoted_span_opens_nothing():
+    for line in ("X='<<FILL'", 'X="<<FILL"', "printf '... value: <<FILL: nope>>\\n' >f"):
+        source = line + '\n' + '# c\n' * 4 + 'y=2\n'
+        assert comments.comment_runs(source, '#', 3) == [(2, 4)], line
+
+
+def test_shift_in_arithmetic_is_not_a_heredoc():
+    for line in ('n=$((1<<N))', 'n=$(( (1<<N) + 1 ))', '(( n = 1<<N ))'):
+        source = line + '\n' + '# c\n' * 4 + 'y=2\n'
+        assert comments.comment_runs(source, '#', 3) == [(2, 4)], line
+
+
+def test_heredoc_after_arithmetic_or_quotes_still_opens():
+    source = "n=$((1<<N)) && cat <<'EOF'\n" + '# body\n' * 5 + 'EOF\n'
+    assert comments.comment_runs(source, '#', 3) == []
+    source = "echo '<<A' <<B\n" + '# body\n' * 5 + 'B\n'
+    assert comments.comment_runs(source, '#', 3) == []
+
+
+def test_heredoc_without_a_terminator_does_not_swallow_the_file():
+    source = 'cat <<NOPE\n' + '# c\n' * 4 + 'y=2\n'
+    assert comments.comment_runs(source, '#', 3) == [(2, 4)]

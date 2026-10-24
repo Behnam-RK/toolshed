@@ -7,7 +7,7 @@ empty sections. Nothing to change → say so with a one-line reason.
 ## Doc review
 Updated:   <file> — <what changed and why>
 Appended:  <file> — <new docstring / changelog line>
-Recorded:  <ADR-NNNN> — <decision captured; index updated>
+Recorded:  <ADR ref> — <decision captured; index updated if the repo has one>
 Extracted: <code site> → <doc> — <what moved; pointer left behind>
 Deduped:   <doc> — <duplicate folded in from where>
 Trimmed:   <file> — <stale comment / resolved TODO removed>

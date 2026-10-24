@@ -10,7 +10,10 @@ repo's policy; the user's plugin options never write into it.
   `package.json`, `tsconfig.json`, `go.mod`, `Cargo.toml`) and tracked `*.py`/`*.sh`.
 - **Convention docs**: an existing documentation guide or code-style doc, and
   a decision log (`docs/adr/`, `docs/decisions/`, `adr/`, `.agents/adr/`…:
-  numbered `NNNN-*.md` files, an index README).
+  numbered `NNNN-*.md` or slug-named files, possibly in domain subfolders; an
+  index README, a `template.md`). Read its README for the naming convention.
+  A slug-named log needs `[rules.adr-number-collision] adr_glob` set to match
+  its files (e.g. `docs/adr/*.md`), or the rule matches nothing.
 - **Routing doc**: the first of `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`.
 - **Exclusions**: tracked vendored or generated trees (`vendor/`,
   `third_party/`, `*_generated*`, `gen/`, migrations, snapshots).
